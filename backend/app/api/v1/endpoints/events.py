@@ -138,7 +138,16 @@ async def download_event(
     
     # Download from camera if not available locally
     try:
-        async with CameraClient() as client:
+        # Get camera details for the event
+        camera_result = await db.execute(select(Camera).where(Camera.id == event.camera_id))
+        camera = camera_result.scalar_one_or_none()
+        if not camera:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Camera not found for this event"
+            )
+        
+        async with CameraClient(base_url=camera.base_url) as client:
             file_data = await client.get_event_file(event.filename)
             
             # If the camera API returns an error (dict), handle gracefully
@@ -231,8 +240,17 @@ async def delete_event(
         )
     
     try:
+        # Get camera details for the event
+        camera_result = await db.execute(select(Camera).where(Camera.id == event.camera_id))
+        camera = camera_result.scalar_one_or_none()
+        if not camera:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Camera not found for this event"
+            )
+        
         # Delete from camera
-        async with CameraClient() as client:
+        async with CameraClient(base_url=camera.base_url) as client:
             await client.delete_event(event.filename)
         
         # Delete local files
@@ -267,58 +285,89 @@ async def sync_events(
     """Sync events from camera to database"""
     
     try:
-        async with CameraClient() as client:
-            # Get events from camera
-            camera_events = await client.get_events()
-            
-            # Get existing events from database
-            if camera_id:
-                result = await db.execute(select(Event).where(Event.camera_id == camera_id))
-            else:
-                result = await db.execute(select(Event))
-            
-            existing_events = {event.filename: event for event in result.scalars().all()}
-            
-            # Process new events
-            new_events = []
-            for camera_event in camera_events:
-                if camera_event.fileName not in existing_events:
-                    # Parse triggeredAt string to datetime
-                    try:
-                        triggered_at = datetime.fromisoformat(camera_event.triggeredAt)
-                    except ValueError:
-                        # Handle different date formats if needed
-                        logger.warning("Invalid date format", triggered_at=camera_event.triggeredAt)
-                        continue
+        # If camera_id is provided, get the camera details
+        if camera_id:
+            camera_result = await db.execute(select(Camera).where(Camera.id == camera_id))
+            camera = camera_result.scalar_one_or_none()
+            if not camera:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Camera not found"
+                )
+            cameras = [camera]
+        else:
+            # Get all cameras
+            camera_result = await db.execute(select(Camera))
+            cameras = camera_result.scalars().all()
+            if not cameras:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No cameras found in database"
+                )
+        
+        total_new_events = 0
+        total_camera_events = 0
+        
+        for camera in cameras:
+            try:
+                async with CameraClient(base_url=camera.base_url) as client:
+                    # Get events from camera
+                    camera_events = await client.get_events()
+                    total_camera_events += len(camera_events)
                     
-                    # Create new event record
-                    event = Event(
-                        camera_id=camera_id or 1,  # Default to first camera
-                        filename=camera_event.fileName,
-                        event_name=camera_event.eventName,
-                        triggered_at=triggered_at,
-                        video_extension=camera_event.vidExt,
-                        thumbnail_extension=camera_event.thmbExt,
-                        playback_time=camera_event.playbackTime,
-                        metadata={
-                            "age": camera_event.age,
-                            "dir": camera_event.dir
-                        }
-                    )
-                    new_events.append(event)
-            
-            # Add new events to database
-            if new_events:
-                db.add_all(new_events)
-                await db.commit()
-                logger.info("Events synced", new_count=len(new_events))
-            
-            return {
-                "message": "Events synced successfully",
-                "new_events": len(new_events),
-                "total_events": len(camera_events)
-            }
-            
+                    # Get existing events from database for this camera
+                    result = await db.execute(select(Event).where(Event.camera_id == camera.id))
+                    existing_events = {event.filename: event for event in result.scalars().all()}
+                    
+                    # Process new events
+                    new_events = []
+                    for camera_event in camera_events:
+                        if camera_event.fileName not in existing_events:
+                            # Parse triggeredAt string to datetime
+                            try:
+                                triggered_at = datetime.fromisoformat(camera_event.triggeredAt)
+                            except ValueError:
+                                # Handle different date formats if needed
+                                logger.warning("Invalid date format", triggered_at=camera_event.triggeredAt, camera_id=camera.id)
+                                continue
+                            
+                            # Create new event record
+                            event = Event(
+                                camera_id=camera.id,
+                                filename=camera_event.fileName,
+                                event_name=camera_event.eventName,
+                                triggered_at=triggered_at,
+                                video_extension=camera_event.vidExt,
+                                thumbnail_extension=camera_event.thmbExt,
+                                playback_time=camera_event.playbackTime,
+                                event_metadata={
+                                    "age": camera_event.age,
+                                    "dir": camera_event.dir
+                                }
+                            )
+                            new_events.append(event)
+                    
+                    # Add new events to database
+                    if new_events:
+                        db.add_all(new_events)
+                        total_new_events += len(new_events)
+                        logger.info("Events synced for camera", camera_id=camera.id, new_count=len(new_events))
+                        
+            except Exception as e:
+                logger.error("Failed to sync events for camera", camera_id=camera.id, error=str(e))
+                # Continue with other cameras even if one fails
+                continue
+        
+        # Commit all changes
+        await db.commit()
+        
+        return {
+            "message": "Events synced successfully",
+            "new_events": total_new_events,
+            "total_events": total_camera_events,
+            "cameras_processed": len(cameras)
+        }
+        
     except Exception as e:
         logger.error("Failed to sync events", error=str(e))
         raise HTTPException(
@@ -328,28 +377,60 @@ async def sync_events(
 
 @router.get("/active/list")
 async def list_active_events(
+    camera_id: Optional[int] = Query(None, description="Get active events for specific camera"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("view_events"))
 ) -> Any:
     """List currently active events from camera"""
     
     try:
-        async with CameraClient() as client:
-            active_events = await client.get_active_events()
-            
-            return {
-                "active_events": [
-                    {
-                        "filename": event.fileName,
-                        "event_name": event.eventName,
-                        "triggered_at": event.triggeredAt,  # Already a string from camera API
-                        "age": event.age
-                    }
-                    for event in active_events
-                ],
-                "count": len(active_events)
-            }
-            
+        # If camera_id is provided, get the camera details
+        if camera_id:
+            camera_result = await db.execute(select(Camera).where(Camera.id == camera_id))
+            camera = camera_result.scalar_one_or_none()
+            if not camera:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Camera not found"
+                )
+            cameras = [camera]
+        else:
+            # Get all cameras
+            camera_result = await db.execute(select(Camera))
+            cameras = camera_result.scalars().all()
+            if not cameras:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No cameras found in database"
+                )
+        
+        all_active_events = []
+        
+        for camera in cameras:
+            try:
+                async with CameraClient(base_url=camera.base_url) as client:
+                    active_events = await client.get_active_events()
+                    
+                    for event in active_events:
+                        all_active_events.append({
+                            "camera_id": camera.id,
+                            "camera_name": camera.name,
+                            "filename": event.fileName,
+                            "event_name": event.eventName,
+                            "triggered_at": event.triggeredAt,  # Already a string from camera API
+                            "age": event.age
+                        })
+                        
+            except Exception as e:
+                logger.error("Failed to get active events for camera", camera_id=camera.id, error=str(e))
+                # Continue with other cameras even if one fails
+                continue
+        
+        return {
+            "active_events": all_active_events,
+            "count": len(all_active_events)
+        }
+        
     except Exception as e:
         logger.error("Failed to get active events", error=str(e))
         raise HTTPException(
@@ -359,18 +440,59 @@ async def list_active_events(
 
 @router.delete("/active/stop")
 async def stop_all_active_events(
+    camera_id: Optional[int] = Query(None, description="Stop active events for specific camera"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("manage_system"))
 ) -> Any:
     """Stop all active events"""
     
     try:
-        async with CameraClient() as client:
-            await client.stop_all_active_events()
-            
-            logger.info("All active events stopped", user_id=current_user.id)
-            
-            return {"message": "All active events stopped successfully"}
+        # If camera_id is provided, get the camera details
+        if camera_id:
+            camera_result = await db.execute(select(Camera).where(Camera.id == camera_id))
+            camera = camera_result.scalar_one_or_none()
+            if not camera:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Camera not found"
+                )
+            cameras = [camera]
+        else:
+            # Get all cameras
+            camera_result = await db.execute(select(Camera))
+            cameras = camera_result.scalars().all()
+            if not cameras:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No cameras found in database"
+                )
+        
+        stopped_cameras = []
+        failed_cameras = []
+        
+        for camera in cameras:
+            try:
+                async with CameraClient(base_url=camera.base_url) as client:
+                    await client.stop_all_active_events()
+                    stopped_cameras.append(camera.id)
+                    logger.info("Active events stopped for camera", camera_id=camera.id, user_id=current_user.id)
+                    
+            except Exception as e:
+                logger.error("Failed to stop active events for camera", camera_id=camera.id, error=str(e))
+                failed_cameras.append(camera.id)
+                continue
+        
+        if failed_cameras:
+            return {
+                "message": "Active events stopped with some failures",
+                "stopped_cameras": stopped_cameras,
+                "failed_cameras": failed_cameras
+            }
+        else:
+            return {
+                "message": "All active events stopped successfully",
+                "stopped_cameras": stopped_cameras
+            }
             
     except Exception as e:
         logger.error("Failed to stop active events", error=str(e))
