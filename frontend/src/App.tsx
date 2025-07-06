@@ -11,6 +11,8 @@ import RequireAuth from './components/RequireAuth';
 import UserMenu from './components/UserMenu';
 import ResetPassword from './pages/ResetPassword';
 import { useAuth } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import Notification from './components/Notification';
 import Admin from './pages/Admin';
 
 const navLinks = [
@@ -41,48 +43,51 @@ function LockIcon() {
 export default function App() {
   const { isAdmin } = useAuth();
   return (
-    <div className="min-h-screen bg-simsy-dark text-simsy-text font-sans">
-      {/* Top Navigation Bar */}
-      <nav className="w-full bg-simsy-blue px-10 py-4 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-4">
-          <span className="text-2xl font-extrabold tracking-widest text-white">S-IMSY</span>
-        </div>
-        <div className="flex gap-8 items-center">
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              to={link.path}
-              className="text-white text-lg font-medium hover:text-simsy-dark hover:bg-white/10 px-3 py-1 rounded transition"
-            >
-              {link.name}
-            </Link>
-          ))}
-          {isAdmin && (
-            <Link
-              to="/admin"
-              className="text-white text-lg font-bold hover:text-simsy-dark hover:bg-white/10 px-3 py-1 rounded transition border border-white"
-            >
-              Admin
-            </Link>
-          )}
-          <UserMenu />
-        </div>
-      </nav>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-simsy-dark text-simsy-text font-sans">
+        <Notification />
+        {/* Top Navigation Bar */}
+        <nav className="w-full bg-simsy-blue px-10 py-4 flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-4">
+            <span className="text-2xl font-extrabold tracking-widest text-white">S-IMSY</span>
+          </div>
+          <div className="flex gap-8 items-center">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                to={link.path}
+                className="text-white text-lg font-medium hover:text-simsy-dark hover:bg-white/10 px-3 py-1 rounded transition"
+              >
+                {link.name}
+              </Link>
+            ))}
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="text-white text-lg font-bold hover:text-simsy-dark hover:bg-white/10 px-3 py-1 rounded transition border border-white"
+              >
+                Admin
+              </Link>
+            )}
+            <UserMenu />
+          </div>
+        </nav>
 
-      {/* Main Content */}
-      <main className="max-w-5xl mx-auto py-16 px-4">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
-          <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
-          <Route path="/cameras" element={<RequireAuth><Cameras /></RequireAuth>} />
-          <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
-          <Route path="/streams" element={<Streams />} />
-          <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
-          <Route path="/users" element={<RequireAuth><Users /></RequireAuth>} />
-        </Routes>
-      </main>
-    </div>
+        {/* Main Content */}
+        <main className="max-w-5xl mx-auto py-16 px-4">
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
+            <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+            <Route path="/cameras" element={<RequireAuth><Cameras /></RequireAuth>} />
+            <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
+            <Route path="/streams" element={<Streams />} />
+            <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+            <Route path="/users" element={<RequireAuth><Users /></RequireAuth>} />
+          </Routes>
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 }

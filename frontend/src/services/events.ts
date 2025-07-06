@@ -28,7 +28,7 @@ export interface EventFilters {
   endDate?: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 function getAuthHeaders() {
   const token = getToken();
@@ -40,7 +40,7 @@ function getAuthHeaders() {
 
 export async function fetchEvents(params: any = {}) {
   const query = new URLSearchParams(params).toString();
-  const response = await fetch(`${API_BASE_URL}/v1/events/${query ? `?${query}` : ''}`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/events/${query ? `?${query}` : ''}`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {

@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { fetchCameras, createCamera } from '../services/cameras';
 import { fetchCameraStreams, getStreamSnapshot } from '../services/streams';
 import type { Camera } from '../services/cameras';
 import type { StreamList, SnapshotResponse } from '../services/streams';
+import { useApi } from '../hooks/useApi';
+import { useAppState } from '../contexts/AppStateContext';
 
 export default function Cameras() {
-  const [cameras, setCameras] = useState<Camera[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { dispatch } = useAppState();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: '',
@@ -23,12 +23,13 @@ export default function Cameras() {
   const [snapshotLoading, setSnapshotLoading] = useState<number | null>(null);
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchCameras()
-      .then(setCameras)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: cameras, loading, error } = useApi(
+    fetchCameras,
+    [], // Empty dependencies - only fetch once
+    {
+      onError: (err) => dispatch({ type: 'ADD_ERROR', payload: err.message })
+    }
+  );
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -44,13 +45,18 @@ export default function Cameras() {
       await createCamera({ ...form, port: Number(form.port), base_url, use_ssl: base_url.startsWith('https') });
       setShowForm(false);
       setForm({ name: '', ip_address: '', port: 80, model: '', base_url: '' });
-      setLoading(true);
-      fetchCameras()
-        .then(setCameras)
-        .catch((err) => setError(err.message))
-        .finally(() => setLoading(false));
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: 'Camera added successfully', type: 'success' } 
+      });
+      // Refetch cameras by reloading the page for now
+      window.location.reload();
     } catch (err: any) {
       setFormError(err.message || 'Failed to add camera');
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: err.message || 'Failed to add camera', type: 'error' } 
+      });
     } finally {
       setFormLoading(false);
     }
@@ -71,7 +77,10 @@ export default function Cameras() {
       const streamData = await fetchCameraStreams(cameraId);
       setStreams(streamData);
     } catch (err: any) {
-      setError(`Failed to load streams: ${err.message}`);
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: `Failed to load streams: ${err.message}`, type: 'error' } 
+      });
     }
   };
 
@@ -83,7 +92,10 @@ export default function Cameras() {
       const snapshot: SnapshotResponse = await getStreamSnapshot(cameraId, streamName);
       setSnapshotUrl(snapshot.snapshot_url);
     } catch (err: any) {
-      setError(`Failed to take snapshot: ${err.message}`);
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: `Failed to take snapshot: ${err.message}`, type: 'error' } 
+      });
     } finally {
       setSnapshotLoading(null);
     }
@@ -114,8 +126,8 @@ export default function Cameras() {
         </form>
       )}
       {loading && <div>Loading cameras...</div>}
-      {error && <div className="text-red-500 mb-4">{error}</div>}
-      {!loading && !error && (
+      {error && <div className="text-red-500 mb-4">{error.message}</div>}
+      {!loading && !error && cameras && (
         <div className="space-y-4">
           {cameras.map((cam) => (
             <div key={cam.id} className="bg-simsy-card rounded-xl shadow-lg overflow-hidden">
@@ -180,7 +192,10 @@ export default function Cameras() {
                           className="max-w-full h-auto rounded-lg"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
-                            setError('Failed to load snapshot image');
+                            dispatch({ 
+                              type: 'ADD_NOTIFICATION', 
+                              payload: { message: 'Failed to load snapshot image', type: 'error' } 
+                            });
                           }}
                         />
                         <div className="mt-2">

@@ -1,48 +1,45 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { fetchEvents, syncEvents, downloadEvent } from '../services/events';
 import type { Event, EventFilters } from '../services/events';
 import { fetchCameras } from '../services/cameras';
 import type { Camera } from '../services/cameras';
+import { useApi } from '../hooks/useApi';
+import { useAppState } from '../contexts/AppStateContext';
 
 export default function Events() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [cameras, setCameras] = useState<Camera[]>([]);
+  const { dispatch } = useAppState();
   const [filters, setFilters] = useState<EventFilters>({});
   const [syncing, setSyncing] = useState(false);
 
-  useEffect(() => {
-    fetchCameras().then(setCameras).catch(() => {});
-  }, []);
+  const { data: cameras } = useApi(
+    fetchCameras,
+    [], // Empty dependencies - only fetch once
+    {
+      onError: (err) => dispatch({ type: 'ADD_ERROR', payload: err.message })
+    }
+  );
 
   const toISODate = (date: string, endOfDay = false) => {
     if (!date) return undefined;
     return endOfDay ? `${date}T23:59:59Z` : `${date}T00:00:00Z`;
   };
 
-  const loadEvents = () => {
-    setLoading(true);
-    const filtersWithISO = {
-      ...filters,
-      startDate: toISODate(filters.startDate || '', false),
-      endDate: toISODate(filters.endDate || '', true),
-    };
-    fetchEvents(filtersWithISO)
-      .then((data) => {
-        setEvents(data.events);
-        setError(null);
-      })
-      .catch((err) => {
-        setError(err.message || 'Failed to fetch events');
-      })
-      .finally(() => setLoading(false));
-  };
+  const { data: eventsData, loading, error } = useApi(
+    () => {
+      const filtersWithISO = {
+        ...filters,
+        startDate: toISODate(filters.startDate || '', false),
+        endDate: toISODate(filters.endDate || '', true),
+      };
+      return fetchEvents(filtersWithISO);
+    },
+    [filters], // Re-fetch when filters change
+    {
+      onError: (err) => dispatch({ type: 'ADD_ERROR', payload: err.message })
+    }
+  );
 
-  useEffect(() => {
-    loadEvents();
-    // eslint-disable-next-line
-  }, [filters]);
+  const events = eventsData?.events || [];
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -53,9 +50,17 @@ export default function Events() {
     setSyncing(true);
     try {
       await syncEvents(filters.cameraId ? Number(filters.cameraId) : undefined);
-      loadEvents();
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: 'Events synced successfully', type: 'success' } 
+      });
+      // Reload page to refresh events
+      window.location.reload();
     } catch (err: any) {
-      setError(err.message || 'Failed to sync events');
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: err.message || 'Failed to sync events', type: 'error' } 
+      });
     } finally {
       setSyncing(false);
     }
@@ -74,7 +79,7 @@ export default function Events() {
             className="bg-gray-900 text-white px-2 py-1 rounded"
           >
             <option value="">All Cameras</option>
-            {cameras.map((cam) => (
+            {cameras?.map((cam) => (
               <option key={cam.id} value={cam.id}>{cam.name}</option>
             ))}
           </select>
@@ -108,7 +113,7 @@ export default function Events() {
         </button>
       </div>
       {loading && <p>Loading events...</p>}
-      {error && <p className="text-red-500">{error}</p>}
+      {error && <p className="text-red-500">{error.message}</p>}
       {!loading && !error && events.length === 0 && <p>No events found.</p>}
       {!loading && !error && events.length > 0 && (
         <table className="min-w-full bg-gray-800 text-white rounded-lg overflow-hidden">
@@ -124,7 +129,7 @@ export default function Events() {
             </tr>
           </thead>
           <tbody>
-            {events.map((event) => (
+            {events.map((event: Event) => (
               <tr key={event.id} className="border-t border-gray-700">
                 <td className="px-4 py-2">{event.filename}</td>
                 <td className="px-4 py-2">{event.event_name || '-'}</td>

@@ -16,7 +16,7 @@ export interface ApplicationSettings {
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 export async function fetchApplicationSettings(): Promise<ApplicationSettings> {
-  const response = await fetch(`${API_BASE_URL}/v1/settings/application/settings`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/settings/application/settings`, {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`,
       'Content-Type': 'application/json',

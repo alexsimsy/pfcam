@@ -1,23 +1,33 @@
-# Use Node.js 18 as base image
-FROM node:18-alpine
+# Build stage
+FROM node:18-alpine AS build
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and .env first to ensure cache busting
 COPY package*.json ./
+COPY .env ./
 
-# Install dependencies (using npm install instead of npm ci to avoid rollup issues)
+# Install dependencies
 RUN npm install
 
-# Copy source code
+# Copy the rest of the source code
 COPY . .
 
 # Build the application
 RUN npm run build
 
-# Install serve to run the built app
+# Production stage
+FROM node:18-alpine AS production
+
+# Install serve globally
 RUN npm install -g serve
+
+# Set working directory
+WORKDIR /app
+
+# Copy built files from build stage
+COPY --from=build /app/dist ./dist
 
 # Expose port
 EXPOSE 3000

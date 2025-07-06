@@ -1,59 +1,55 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { fetchApplicationSettings, updateApplicationSettings, resetApplicationSettings } from '../services/settings';
 import type { ApplicationSettings } from '../services/settings';
+import { useApi } from '../hooks/useApi';
+import { useAppState } from '../contexts/AppStateContext';
 
 export default function Settings() {
-  const [settings, setSettings] = useState<ApplicationSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { dispatch } = useAppState();
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      const data = await fetchApplicationSettings();
-      setSettings(data);
-    } catch (err: any) {
-      setError(err.message);
-      // Set default settings if API fails
-      setSettings({
-        id: 1,
-        auto_start_streams: false,
-        stream_quality: 'medium',
-        store_data_on_camera: true,
-        auto_download_events: false,
-        auto_download_snapshots: false,
-        event_retention_days: 30,
-        snapshot_retention_days: 7,
-        mobile_data_saving: true,
-        low_bandwidth_mode: false,
-        created_at: new Date().toISOString(),
-      });
-    } finally {
-      setLoading(false);
+  const { data: settings, loading, error } = useApi(
+    fetchApplicationSettings,
+    [], // Empty dependencies - only fetch once
+    {
+      onError: (err) => {
+        dispatch({ type: 'ADD_ERROR', payload: err.message });
+        // Set default settings if API fails
+        return {
+          id: 1,
+          auto_start_streams: false,
+          stream_quality: 'medium',
+          store_data_on_camera: true,
+          auto_download_events: false,
+          auto_download_snapshots: false,
+          event_retention_days: 30,
+          snapshot_retention_days: 7,
+          mobile_data_saving: true,
+          low_bandwidth_mode: false,
+          created_at: new Date().toISOString(),
+        };
+      }
     }
-  };
+  );
 
   const updateSetting = async (field: keyof ApplicationSettings, value: any) => {
     if (!settings) return;
     
     setSaving(true);
-    setError('');
-    setSuccess('');
     
     try {
-      const updatedSettings = await updateApplicationSettings({ [field]: value });
-      setSettings(updatedSettings);
-      setSuccess('Settings updated successfully');
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(''), 3000);
+      await updateApplicationSettings({ [field]: value });
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: 'Settings updated successfully', type: 'success' } 
+      });
+      // Reload page to get updated settings
+      window.location.reload();
     } catch (err: any) {
-      setError(err.message);
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: err.message, type: 'error' } 
+      });
     } finally {
       setSaving(false);
     }
@@ -65,18 +61,20 @@ export default function Settings() {
     }
     
     setSaving(true);
-    setError('');
-    setSuccess('');
     
     try {
       await resetApplicationSettings();
-      await loadSettings();
-      setSuccess('Settings reset to defaults');
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(''), 3000);
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: 'Settings reset to defaults', type: 'success' } 
+      });
+      // Reload page to get updated settings
+      window.location.reload();
     } catch (err: any) {
-      setError(err.message);
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: err.message, type: 'error' } 
+      });
     } finally {
       setSaving(false);
     }
@@ -87,6 +85,15 @@ export default function Settings() {
       <div>
         <h1 className="text-4xl font-bold mb-4">Settings</h1>
         <div>Loading settings...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <h1 className="text-4xl font-bold mb-4">Settings</h1>
+        <div className="text-red-500">Error: {error.message}</div>
       </div>
     );
   }
@@ -112,9 +119,6 @@ export default function Settings() {
           {saving ? 'Resetting...' : 'Reset to Defaults'}
         </button>
       </div>
-
-      {error && <div className="text-red-500 mb-4">{error}</div>}
-      {success && <div className="text-green-500 mb-4">{success}</div>}
 
       <div className="space-y-6">
         {/* Streaming Settings */}

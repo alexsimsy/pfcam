@@ -49,7 +49,7 @@ export interface SnapshotListItem {
   download_url: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 function getAuthHeaders() {
   const token = getToken();
@@ -60,7 +60,7 @@ function getAuthHeaders() {
 }
 
 export async function fetchCameraStreams(cameraId: number): Promise<StreamList> {
-  const res = await fetch(`${API_BASE_URL}/v1/streams/${cameraId}`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/streams/${cameraId}`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error('Failed to fetch camera streams');
@@ -68,7 +68,7 @@ export async function fetchCameraStreams(cameraId: number): Promise<StreamList> 
 }
 
 export async function getStreamSnapshot(cameraId: number, streamName: string): Promise<SnapshotResponse> {
-  const res = await fetch(`${API_BASE_URL}/v1/streams/${cameraId}/${streamName}/snapshot`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/streams/${cameraId}/${streamName}/snapshot`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error('Failed to get stream snapshot');
@@ -83,7 +83,7 @@ export async function getStreamUrl(cameraId: number, streamName: string): Promis
   fps: number;
   resolution: { width: number; height: number };
 }> {
-  const res = await fetch(`${API_BASE_URL}/v1/streams/${cameraId}/${streamName}/url`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/streams/${cameraId}/${streamName}/url`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error('Failed to get stream URL');
@@ -91,7 +91,7 @@ export async function getStreamUrl(cameraId: number, streamName: string): Promis
 }
 
 export async function listSnapshots(cameraId: number): Promise<SnapshotListItem[]> {
-  const url = `${API_BASE_URL}/v1/streams/snapshots/${cameraId}`;
+  const url = `${API_BASE_URL}/api/v1/streams/snapshots/${cameraId}`;
   console.log('Fetching snapshots from:', url);
   const res = await fetch(url, {
     headers: getAuthHeaders(),
@@ -101,11 +101,11 @@ export async function listSnapshots(cameraId: number): Promise<SnapshotListItem[
 }
 
 export function getSnapshotDownloadUrl(snapshotId: number): string {
-  return `${API_BASE_URL}/v1/streams/snapshots/${snapshotId}/download`;
+  return `${API_BASE_URL}/api/v1/streams/snapshots/${snapshotId}/download`;
 }
 
 export async function deleteSnapshot(snapshotId: number): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/v1/streams/snapshots/${snapshotId}`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/streams/snapshots/${snapshotId}`, {
     method: 'DELETE',
     headers: getAuthHeaders(),
   });
