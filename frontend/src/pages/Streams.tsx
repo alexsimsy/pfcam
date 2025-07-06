@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { fetchCameras } from '../services/cameras';
-import { fetchCameraStreams, getStreamSnapshot, listSnapshots, deleteSnapshot } from '../services/streams';
+import { fetchCameraStreams, getStreamSnapshot, listSnapshots, deleteSnapshot, getStreamUrl } from '../services/streams';
 import type { Camera } from '../services/cameras';
 import type { StreamList, SnapshotResponse, SnapshotListItem } from '../services/streams';
 import { fetchProtectedImage } from '../utils/proxyImage';
 import { getToken } from '../services/auth';
-import { FaSpinner, FaExclamationCircle, FaDownload, FaTrash } from 'react-icons/fa';
+import { FaSpinner, FaExclamationCircle, FaDownload, FaTrash, FaSyncAlt, FaCheck } from 'react-icons/fa';
+import VideoStreamModal from '../components/VideoStreamModal';
+
+const HD_STREAM_URL = 'http://192.168.86.199/stream-hd';
 
 export default function Streams() {
   const [cameras, setCameras] = useState<Camera[]>([]);
@@ -19,6 +22,15 @@ export default function Streams() {
   const [snapshotImageUrls, setSnapshotImageUrls] = useState<Map<number, string>>(new Map());
   const [snapshotImageLoading, setSnapshotImageLoading] = useState<Map<number, boolean>>(new Map());
   const [snapshotImageError, setSnapshotImageError] = useState<Map<number, boolean>>(new Map());
+  const [liveView, setLiveView] = useState<{
+    cameraId: number;
+    streamName: string;
+    streamUrl: string;
+  } | null>(null);
+  const [liveViewLoading, setLiveViewLoading] = useState(false);
+  const [liveViewError, setLiveViewError] = useState('');
+  const [refreshingCameraId, setRefreshingCameraId] = useState<number | null>(null);
+  const [refreshSuccessCameraId, setRefreshSuccessCameraId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchCameras()
@@ -57,6 +69,13 @@ export default function Streams() {
     });
     // eslint-disable-next-line
   }, [snapshotList, cameras]);
+
+  // Stop stream on navigation away
+  useEffect(() => {
+    return () => {
+      setLiveView(null);
+    };
+  }, []);
 
   const handleCameraClick = async (cameraId: number) => {
     if (selectedCamera === cameraId) {
@@ -142,11 +161,63 @@ export default function Streams() {
     }
   };
 
+  const handleStartLiveView = async (cameraId: number, streamName: string) => {
+    setLiveViewLoading(true);
+    setLiveViewError('');
+    try {
+      if (streamName.toLowerCase() === 'hd') {
+        setLiveView({ cameraId, streamName, streamUrl: HD_STREAM_URL });
+      } else {
+        // Existing logic for RTSP or other streams
+        const { stream_url } = await getStreamUrl(cameraId, streamName);
+        setLiveView({ cameraId, streamName, streamUrl: stream_url });
+      }
+    } catch (err: any) {
+      setLiveViewError('Failed to start live view: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLiveViewLoading(false);
+    }
+  };
+
+  const handleStopLiveView = () => {
+    setLiveView(null);
+  };
+
+  const handleRefreshCamera = async (cameraId: number) => {
+    setRefreshingCameraId(cameraId);
+    setRefreshSuccessCameraId(null);
+    try {
+      const token = getToken();
+      await fetch(`/api/v1/cameras/${cameraId}/refresh-mediamtx`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+      });
+      setRefreshSuccessCameraId(cameraId);
+      setTimeout(() => setRefreshSuccessCameraId(null), 2000);
+    } catch (e) {
+      alert('Failed to refresh camera stream');
+    } finally {
+      setRefreshingCameraId(null);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-4xl font-bold mb-4">Streams</h1>
+      {liveView && (
+        <VideoStreamModal
+          open={!!liveView}
+          onClose={handleStopLiveView}
+          streamUrl={liveView.streamUrl}
+          streamName={liveView.streamName}
+        />
+      )}
       {loading && <div>Loading cameras...</div>}
       {error && <div className="text-red-500 mb-4">{error}</div>}
+      {liveViewError && <div className="text-red-500 mb-4">{liveViewError}</div>}
       {!loading && !error && (
         <div className="space-y-4">
           {cameras.map((cam) => (
@@ -159,7 +230,23 @@ export default function Streams() {
                   <div className="flex items-center gap-4">
                     <div className="w-3 h-3 rounded-full bg-green-400"></div>
                     <div>
-                      <h3 className="text-xl font-bold text-simsy-blue">{cam.name}</h3>
+                      <h3 className="text-xl font-bold text-simsy-blue flex items-center gap-2">
+                        {cam.name}
+                        <button
+                          className="ml-2 text-simsy-blue hover:text-simsy-dark focus:outline-none"
+                          onClick={e => { e.stopPropagation(); handleRefreshCamera(cam.id); }}
+                          disabled={refreshingCameraId === cam.id}
+                          title="Refresh stream settings"
+                        >
+                          {refreshingCameraId === cam.id ? (
+                            <FaSpinner className="animate-spin" />
+                          ) : refreshSuccessCameraId === cam.id ? (
+                            <FaCheck className="text-green-400" />
+                          ) : (
+                            <FaSyncAlt />
+                          )}
+                        </button>
+                      </h3>
                       <p className="text-simsy-text">{cam.ip_address}:{cam.port}</p>
                     </div>
                   </div>
@@ -185,6 +272,13 @@ export default function Streams() {
                           <p>FPS: {stream.stream_info.fps}</p>
                           <p>Codec: {stream.stream_info.codec}</p>
                         </div>
+                        <button
+                          onClick={() => handleStartLiveView(cam.id, stream.name)}
+                          disabled={liveViewLoading}
+                          className="w-full bg-simsy-blue text-white font-bold py-2 px-4 rounded hover:bg-simsy-dark hover:text-simsy-blue transition disabled:opacity-50 mb-2"
+                        >
+                          {liveViewLoading ? 'Starting...' : 'Start Live View'}
+                        </button>
                         {stream.stream_info.snapshot && (
                           <button
                             onClick={() => handleTakeSnapshot(cam.id, stream.name)}

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from datetime import datetime, timedelta
 import structlog
+import subprocess
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -11,6 +12,7 @@ from app.models.user import User
 from app.models.camera import Camera
 from app.services.camera_client import CameraClient
 from app.schemas.cameras import CameraResponse, CameraCreate, CameraUpdate, CameraStatus
+from app.services.mediamtx_config import generate_mediamtx_config, write_mediamtx_config
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -55,6 +57,36 @@ async def get_camera(
         )
     
     return CameraResponse.from_orm(camera)
+
+async def update_mediamtx_config_and_reload(db):
+    # Fetch all cameras and their RTSP settings
+    result = await db.execute(select(Camera))
+    cameras = result.scalars().all()
+    camera_dicts = []
+    for cam in cameras:
+        # Fetch RTSP settings from camera
+        try:
+            async with CameraClient(base_url=cam.base_url) as client:
+                settings = await client.get_settings()
+                camera_dicts.append({
+                    'name': cam.name,
+                    'ip_address': cam.ip_address,
+                    'rtsp_port': settings.rtsp_port,
+                    'rtsp_path': settings.rtsp_path,
+                    'username': cam.username,
+                    'password': cam.password,
+                    'rtsp_auth': settings.rtsp_auth,
+                })
+        except Exception as e:
+            # Skip cameras that are offline or misconfigured
+            continue
+    config = generate_mediamtx_config(camera_dicts)
+    write_mediamtx_config(config)
+    # Reload MediaMTX (docker restart)
+    try:
+        subprocess.run(["docker", "compose", "restart", "mediamtx"], check=True)
+    except Exception as e:
+        pass
 
 @router.post("/", response_model=CameraResponse)
 async def create_camera(
@@ -111,6 +143,8 @@ async def create_camera(
     await db.refresh(camera)
     
     logger.info("Camera created", camera_id=camera.id, name=camera.name)
+    # Update MediaMTX config and reload
+    await update_mediamtx_config_and_reload(db)
     
     return CameraResponse.from_orm(camera)
 
@@ -142,6 +176,8 @@ async def update_camera(
     await db.refresh(camera)
     
     logger.info("Camera updated", camera_id=camera.id, user_id=current_user.id)
+    # Update MediaMTX config and reload
+    await update_mediamtx_config_and_reload(db)
     
     return CameraResponse.from_orm(camera)
 
@@ -470,4 +506,66 @@ async def get_bulk_camera_status(
     return {
         "results": status_results,
         "total": len(status_results)
-    } 
+    }
+
+@router.post("/refresh-mediamtx")
+async def refresh_mediamtx(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("manage_cameras"))
+):
+    """Manually refresh MediaMTX config and reload the service."""
+    await update_mediamtx_config_and_reload(db)
+    return {"message": "MediaMTX config refreshed and service reloaded."}
+
+@router.post("/{camera_id}/refresh-mediamtx")
+async def refresh_camera_mediamtx(
+    camera_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("manage_cameras"))
+):
+    """Manually refresh MediaMTX config for a single camera and reload the service."""
+    # Fetch all cameras
+    result = await db.execute(select(Camera))
+    cameras = result.scalars().all()
+    camera_dicts = []
+    for cam in cameras:
+        if cam.id == camera_id:
+            # Fetch RTSP settings from this camera
+            try:
+                async with CameraClient(base_url=cam.base_url) as client:
+                    settings = await client.get_settings()
+                    camera_dicts.append({
+                        'name': cam.name,
+                        'ip_address': cam.ip_address,
+                        'rtsp_port': settings.rtsp_port,
+                        'rtsp_path': settings.rtsp_path,
+                        'username': cam.username,
+                        'password': cam.password,
+                        'rtsp_auth': settings.rtsp_auth,
+                    })
+            except Exception as e:
+                continue
+        else:
+            # Use last known settings for other cameras
+            try:
+                async with CameraClient(base_url=cam.base_url) as client:
+                    settings = await client.get_settings()
+                    camera_dicts.append({
+                        'name': cam.name,
+                        'ip_address': cam.ip_address,
+                        'rtsp_port': settings.rtsp_port,
+                        'rtsp_path': settings.rtsp_path,
+                        'username': cam.username,
+                        'password': cam.password,
+                        'rtsp_auth': settings.rtsp_auth,
+                    })
+            except Exception as e:
+                continue
+    config = generate_mediamtx_config(camera_dicts)
+    write_mediamtx_config(config)
+    # Reload MediaMTX (docker restart)
+    try:
+        subprocess.run(["docker", "compose", "restart", "mediamtx"], check=True)
+    except Exception as e:
+        pass
+    return {"message": f"MediaMTX config refreshed for camera {camera_id} and service reloaded."} 
