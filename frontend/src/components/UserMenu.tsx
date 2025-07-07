@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,19 +6,38 @@ export default function UserMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open]);
 
   const handleLogout = () => {
+    setOpen(false);
     logout();
     navigate('/login');
   };
 
   const handlePasswordReset = () => {
-    // For now, just navigate to a placeholder page
+    setOpen(false);
     navigate('/reset-password');
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         className="text-white font-bold px-4 py-2 rounded bg-simsy-blue hover:bg-simsy-dark hover:text-simsy-blue transition"
         onClick={() => setOpen((v) => !v)}

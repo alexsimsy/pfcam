@@ -10,13 +10,16 @@ class ApplicationSettings(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Streaming settings
-    auto_start_streams = Column(Boolean, default=False, nullable=False)
-    stream_quality = Column(String, default='medium', nullable=False)
+    live_quality_level = Column(Integer, default=50, nullable=False)
+    recording_quality_level = Column(Integer, default=50, nullable=False)
+    
+    # Camera settings
+    heater_level = Column(Integer, default=0, nullable=False)  # 0=off, 1=low, 2=med, 3=high
+    picture_rotation = Column(Integer, default=90, nullable=False)  # 0, 90, 180, 270 degrees
     
     # Storage settings
     store_data_on_camera = Column(Boolean, default=True, nullable=False)
     auto_download_events = Column(Boolean, default=False, nullable=False)
-    auto_download_snapshots = Column(Boolean, default=False, nullable=False)
     
     # Retention settings
     event_retention_days = Column(Integer, default=30, nullable=False)
@@ -25,6 +28,10 @@ class ApplicationSettings(Base):
     # Mobile optimization settings
     mobile_data_saving = Column(Boolean, default=True, nullable=False)
     low_bandwidth_mode = Column(Boolean, default=False, nullable=False)
+    
+    # Event recording settings
+    pre_event_recording_seconds = Column(Integer, default=10, nullable=False)
+    post_event_recording_seconds = Column(Integer, default=10, nullable=False)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from app.models.user import UserRole
 
@@ -28,8 +29,8 @@ class UserResponse(BaseModel):
     email_notifications: bool
     is_active: bool
     is_verified: bool
-    created_at: str
-    last_login: Optional[str]
+    created_at: datetime
+    last_login: Optional[datetime]
 
     class Config:
         from_attributes = True

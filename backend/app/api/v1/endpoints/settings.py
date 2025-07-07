@@ -90,17 +90,12 @@ async def update_camera_settings(
     
     try:
         async with CameraClient(base_url=camera.base_url) as client:
-            # Get current settings
-            current_settings = await client.get_settings()
-            
-            # Update settings with new values
+            # Only send the changed fields to the camera
             update_data = settings_data.dict(exclude_unset=True)
-            for key, value in update_data.items():
-                if hasattr(current_settings, key):
-                    setattr(current_settings, key, value)
-            
-            # Apply settings to camera
-            updated_settings = await client.update_settings(current_settings)
+            # PATCH: Use _make_request directly to send only changed fields
+            response = await client._make_request("PUT", "/system/settings", json=update_data)
+            # Optionally, fetch the updated settings from the camera
+            updated_settings = await client.get_settings()
             
             # Store updated settings in database
             db_settings = await db.execute(
@@ -133,7 +128,7 @@ async def update_camera_settings(
         logger.error("Failed to update camera settings", camera_id=camera_id, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update camera settings"
+            detail=f"Failed to update camera settings: {str(e)}"
         )
 
 @router.delete("/{camera_id}/reset", response_model=SettingsResponse)

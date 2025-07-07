@@ -5,7 +5,7 @@ import Cameras from './pages/Cameras';
 import Events from './pages/Events';
 import Streams from './pages/Streams';
 import Settings from './pages/Settings';
-import Users from './pages/Users';
+
 import Login from './pages/Login';
 import RequireAuth from './components/RequireAuth';
 import UserMenu from './components/UserMenu';
@@ -21,7 +21,6 @@ const navLinks = [
   { name: 'Events', path: '/events' },
   { name: 'Streams', path: '/streams' },
   { name: 'Settings', path: '/settings' },
-  { name: 'Users', path: '/users' },
 ];
 
 function CameraIcon() {
@@ -84,7 +83,7 @@ export default function App() {
             <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
             <Route path="/streams" element={<Streams />} />
             <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
-            <Route path="/users" element={<RequireAuth><Users /></RequireAuth>} />
+
           </Routes>
         </main>
       </div>

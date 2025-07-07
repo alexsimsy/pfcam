@@ -423,6 +423,45 @@ async def take_camera_snapshot(
             detail="Failed to take snapshot"
         )
 
+@router.post("/{camera_id}/trigger-event")
+async def trigger_camera_event(
+    camera_id: int,
+    pre_event_seconds: int = 10,
+    post_event_seconds: int = 10,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("manage_cameras"))
+) -> Any:
+    """Trigger an event on the specified camera"""
+    
+    result = await db.execute(select(Camera).where(Camera.id == camera_id))
+    camera = result.scalar_one_or_none()
+    
+    if not camera:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Camera not found"
+        )
+    
+    try:
+        async with CameraClient(base_url=camera.base_url) as client:
+            success = await client.trigger_event(pre_event_seconds, post_event_seconds)
+            
+            if success:
+                logger.info("Event triggered successfully", camera_id=camera_id, user_id=current_user.id)
+                return {"message": "Event triggered successfully"}
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to trigger event"
+                )
+            
+    except Exception as e:
+        logger.error("Failed to trigger event", camera_id=camera_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger event"
+        )
+
 @router.get("/{camera_id}/streams")
 async def get_camera_streams(
     camera_id: int,

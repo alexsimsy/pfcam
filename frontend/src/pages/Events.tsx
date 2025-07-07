@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { fetchEvents, syncEvents, downloadEvent } from '../services/events';
 import type { Event, EventFilters } from '../services/events';
-import { fetchCameras } from '../services/cameras';
+import { fetchCameras, triggerEvent, updateCameraSystemSettings } from '../services/cameras';
 import type { Camera } from '../services/cameras';
+import { fetchApplicationSettings } from '../services/settings';
 import { useApi } from '../hooks/useApi';
 import { useAppState } from '../contexts/AppStateContext';
 
@@ -10,6 +11,8 @@ export default function Events() {
   const { dispatch } = useAppState();
   const [filters, setFilters] = useState<EventFilters>({});
   const [syncing, setSyncing] = useState(false);
+  const [triggering, setTriggering] = useState(false);
+  const [appSettings, setAppSettings] = useState<any>(null);
 
   const { data: cameras } = useApi(
     fetchCameras,
@@ -18,6 +21,18 @@ export default function Events() {
       onError: (err) => dispatch({ type: 'ADD_ERROR', payload: err.message })
     }
   );
+
+  // Default camera selection to first camera if none is selected
+  useEffect(() => {
+    if (cameras && cameras.length > 0 && !filters.cameraId) {
+      setFilters((prev) => ({ ...prev, cameraId: cameras[0].id }));
+    }
+  }, [cameras]);
+
+  // Fetch application settings for pre/post event times
+  useEffect(() => {
+    fetchApplicationSettings().then(setAppSettings).catch(() => {});
+  }, []);
 
   const toISODate = (date: string, endOfDay = false) => {
     if (!date) return undefined;
@@ -66,6 +81,40 @@ export default function Events() {
     }
   };
 
+  const handleTriggerEvent = async () => {
+    if (!filters.cameraId) {
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: 'Please select a camera first', type: 'error' } 
+      });
+      return;
+    }
+    setTriggering(true);
+    try {
+      // Update camera system settings with pre/post event times from app settings
+      if (appSettings) {
+        await updateCameraSystemSettings(Number(filters.cameraId), {
+          recording_seconds_post_event: appSettings.post_event_recording_seconds,
+          recording_seconds_post_event_extended: appSettings.post_event_recording_seconds,
+          recording_seconds_pre_event: appSettings.pre_event_recording_seconds,
+          recording_seconds_pre_event_extended: appSettings.pre_event_recording_seconds * 7
+        });
+      }
+      await triggerEvent(Number(filters.cameraId));
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: 'Event triggered successfully', type: 'success' } 
+      });
+    } catch (err: any) {
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: err.message || 'Failed to trigger event', type: 'error' } 
+      });
+    } finally {
+      setTriggering(false);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-4xl font-bold mb-4">Events</h1>
@@ -110,6 +159,13 @@ export default function Events() {
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow"
         >
           {syncing ? 'Syncing...' : 'Sync Events'}
+        </button>
+        <button
+          onClick={handleTriggerEvent}
+          disabled={triggering || !filters.cameraId}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow disabled:opacity-50"
+        >
+          {triggering ? 'Triggering...' : 'Trigger Event'}
         </button>
       </div>
       {loading && <p>Loading events...</p>}

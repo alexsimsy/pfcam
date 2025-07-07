@@ -1,14 +1,17 @@
 export interface ApplicationSettings {
   id: number;
-  auto_start_streams: boolean;
-  stream_quality: 'low' | 'medium' | 'high';
+  live_quality_level: number;
+  recording_quality_level: number;
+  heater_level: number;
+  picture_rotation: number;
   store_data_on_camera: boolean;
   auto_download_events: boolean;
-  auto_download_snapshots: boolean;
   event_retention_days: number;
   snapshot_retention_days: number;
   mobile_data_saving: boolean;
   low_bandwidth_mode: boolean;
+  pre_event_recording_seconds: number;
+  post_event_recording_seconds: number;
   created_at: string;
   updated_at?: string;
 }

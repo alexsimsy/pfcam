@@ -356,6 +356,21 @@ class CameraClient:
             logger.error("Failed to take snapshot", stream_name=stream_name, error=str(e))
             raise
 
+    async def trigger_event(self, pre_event_seconds: int = 10, post_event_seconds: int = 10) -> bool:
+        """Trigger an event on the camera with specified pre/post recording times"""
+        payload = {
+            "postEventUnlimited": False,
+            "preEventSeconds": pre_event_seconds,
+            "postEventSeconds": post_event_seconds
+        }
+        
+        try:
+            response = await self._make_request("POST", "/events", json=payload)
+            return True
+        except Exception as e:
+            logger.error("Failed to trigger event", error=str(e))
+            return False
+
 # Factory function for creating camera client
 async def get_camera_client() -> CameraClient:
     """Get camera client instance"""

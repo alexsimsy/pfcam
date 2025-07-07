@@ -66,6 +66,8 @@ class ApplicationSettingsBase(BaseModel):
     snapshot_retention_days: int = 7
     mobile_data_saving: bool = True
     low_bandwidth_mode: bool = False
+    pre_event_recording_seconds: int = 10
+    post_event_recording_seconds: int = 10
 
 class ApplicationSettingsCreate(ApplicationSettingsBase):
     pass
@@ -80,6 +82,8 @@ class ApplicationSettingsUpdate(BaseModel):
     snapshot_retention_days: Optional[int] = None
     mobile_data_saving: Optional[bool] = None
     low_bandwidth_mode: Optional[bool] = None
+    pre_event_recording_seconds: Optional[int] = None
+    post_event_recording_seconds: Optional[int] = None
 
 class ApplicationSettingsResponse(ApplicationSettingsBase):
     id: int

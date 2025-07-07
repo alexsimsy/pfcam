@@ -54,4 +54,30 @@ export async function createCamera(data: CameraCreate): Promise<Camera> {
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+export async function updateCameraSystemSettings(cameraId: number, settings: any): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/${cameraId}/system/settings`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function triggerEvent(
+  cameraId: number, 
+  preEventSeconds: number = 10, 
+  postEventSeconds: number = 10
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/${cameraId}/trigger-event`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      pre_event_seconds: preEventSeconds,
+      post_event_seconds: postEventSeconds
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 } 
