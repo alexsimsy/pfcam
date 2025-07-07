@@ -27,6 +27,7 @@ services:
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - STORAGE_PATH=/app/storage
+      - FTP_PUBLIC_HOST=192.168.86.25
     volumes:
       - ./backend:/app
       - storage_data:/app/storage
@@ -82,6 +83,22 @@ services:
     volumes:
       - ./mediamtx.yml:/mediamtx.yml
     network_mode: bridge
+
+  ftp:
+    image: stilliard/pure-ftpd:latest
+    container_name: pfcam-ftp-1
+    ports:
+      - "21:21"
+      - "30000-30009:30000-30009"  # Passive port range
+    environment:
+      - PUBLICHOST=localhost
+      - FTP_USER_NAME=ftpuser
+      - FTP_USER_PASS=ftppass
+      - FTP_USER_HOME=/home/ftpuser/ftp
+      - ADDED_FLAGS=--passiveportrange 30000:30009
+    volumes:
+      - ./ftpdata:/home/ftpuser/ftp
+    restart: unless-stopped
 
 volumes:
   postgres_data:

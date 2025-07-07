@@ -4,6 +4,8 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 import structlog
 from pydantic import BaseModel
+import socket
+import os
 
 from app.core.config import settings
 
@@ -203,9 +205,20 @@ class CameraClient:
         return await self._make_request("GET", f"/events/{filename}")
     
     async def delete_event(self, filename: str) -> bool:
-        """Delete specific event from camera"""
-        await self._make_request("DELETE", f"/events/{filename}")
-        return True
+        """Delete specific event from camera. If already missing, treat as success."""
+        try:
+            await self._make_request("DELETE", f"/events/{filename}")
+            return True
+        except httpx.HTTPStatusError as e:
+            # If the camera returns 404 or similar, treat as success
+            if e.response.status_code == 404:
+                logger.warning("Event file already missing on camera", filename=filename)
+                return True
+            logger.error("Failed to delete event from camera", filename=filename, error=str(e))
+            raise
+        except Exception as e:
+            logger.error("Failed to delete event from camera", filename=filename, error=str(e))
+            raise
     
     async def delete_all_events(self) -> bool:
         """Delete all events from camera"""
@@ -380,7 +393,45 @@ class CameraClient:
             logger.error("Failed to trigger event", error=str(e), payload=payload)
             return False
 
+    async def configure_ftp(
+        self,
+        ftp_host: str = None,
+        ftp_user: str = "ftpuser",
+        ftp_password: str = "ftppass",
+        ftp_path: str = "/",
+        ftp_port: int = 21,
+        ftp_recordings: bool = True,
+        ftp_snapshots: bool = False
+    ) -> bool:
+        # Get current settings
+        settings = await self.get_settings()
+        # Use env variable if set
+        ftp_host_env = os.environ.get("FTP_PUBLIC_HOST")
+        settings.network_ftp_host = ftp_host or ftp_host_env or get_lan_ip()
+        settings.network_ftp_user = ftp_user
+        settings.network_ftp_password = ftp_password
+        settings.network_ftp_path = ftp_path
+        settings.network_ftp_port = ftp_port
+        settings.network_ftp_recordings = ftp_recordings
+        settings.network_ftp_snapshots = ftp_snapshots
+        # Push updated settings
+        await self.update_settings(settings)
+        logger.info("Camera FTP settings updated", ftp_host=settings.network_ftp_host)
+        return True
+
 # Factory function for creating camera client
 async def get_camera_client() -> CameraClient:
     """Get camera client instance"""
-    return CameraClient() 
+    return CameraClient()
+
+def get_lan_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP 

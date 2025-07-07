@@ -88,4 +88,13 @@ export async function triggerEvent(
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+export async function configureAllCamerasFtp(): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/configure-ftp-all`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 } 

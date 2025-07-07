@@ -1,11 +1,12 @@
 from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc
 from datetime import datetime, timedelta
 import structlog
 import io
+import os
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -31,10 +32,10 @@ async def list_events(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("view_events"))
 ) -> Any:
-    """List events with filtering and pagination"""
+    """List events with filtering and pagination, excluding deleted events"""
     
     # Build query
-    query = select(Event).join(Camera)
+    query = select(Event).join(Camera).where(Event.is_deleted == False)
     
     # Apply filters
     if camera_id:
@@ -128,7 +129,6 @@ async def download_event(
     # Check if file exists locally
     if event.file_path and event.is_downloaded:
         # Return local file
-        import os
         if os.path.exists(event.file_path):
             return StreamingResponse(
                 open(event.file_path, "rb"),
@@ -158,7 +158,6 @@ async def download_event(
                     detail=f"Camera API error: {file_data.get('error') if isinstance(file_data, dict) else str(file_data)}"
                 )
             # Store file locally
-            import os
             from app.core.config import settings
             
             # Create directory structure
@@ -208,7 +207,6 @@ async def get_event_thumbnail(
     
     # Check if thumbnail exists locally
     if event.thumbnail_path:
-        import os
         if os.path.exists(event.thumbnail_path):
             return StreamingResponse(
                 open(event.thumbnail_path, "rb"),
@@ -254,7 +252,6 @@ async def delete_event(
             await client.delete_event(event.filename)
         
         # Delete local files
-        import os
         if event.file_path and os.path.exists(event.file_path):
             os.remove(event.file_path)
         
@@ -282,9 +279,9 @@ async def sync_events(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("view_events"))
 ) -> Any:
-    """Sync events from camera to database"""
-    
+    """Sync events from camera API and FTP directory to database"""
     try:
+        # 1. Sync from camera API (existing logic)
         # If camera_id is provided, get the camera details
         if camera_id:
             camera_result = await db.execute(select(Camera).where(Camera.id == camera_id))
@@ -360,14 +357,36 @@ async def sync_events(
         
         # Commit all changes
         await db.commit()
-        
+
+        # 2. Sync from FTP directory
+        ftp_dir = os.path.abspath(os.path.join(os.getcwd(), "ftpdata"))
+        if os.path.exists(ftp_dir):
+            for fname in os.listdir(ftp_dir):
+                if not fname.lower().endswith(('.mp4', '.avi', '.mov')):
+                    continue
+                file_path = os.path.join(ftp_dir, fname)
+                # Check if event already exists
+                result = await db.execute(select(Event).where(Event.filename == fname))
+                event = result.scalar_one_or_none()
+                if not event:
+                    # Create a new event record with minimal info
+                    event = Event(
+                        filename=fname,
+                        event_name=None,
+                        triggered_at=datetime.fromtimestamp(os.path.getmtime(file_path)),
+                        file_path=file_path,
+                        is_downloaded=True,
+                        is_deleted=False
+                    )
+                    db.add(event)
+            await db.commit()
+
         return {
-            "message": "Events synced successfully",
+            "message": "Events synced from camera and FTP directory",
             "new_events": total_new_events,
             "total_events": total_camera_events,
             "cameras_processed": len(cameras)
         }
-        
     except Exception as e:
         logger.error("Failed to sync events", error=str(e))
         raise HTTPException(
@@ -499,4 +518,100 @@ async def stop_all_active_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to stop active events"
-        ) 
+        )
+
+@router.delete("/{event_id}/local")
+async def delete_event_local(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("delete_events"))
+) -> Any:
+    """Delete event file from local storage only (not from camera, not marking as deleted)."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    if event.file_path and os.path.exists(event.file_path):
+        os.remove(event.file_path)
+        event.file_path = None
+        event.is_downloaded = False
+        await db.commit()
+        return {"message": "Event file deleted from local storage"}
+    else:
+        return {"message": "No local file to delete"}
+
+@router.get("/{event_id}/play")
+async def play_event(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("view_events"))
+) -> Any:
+    """Stream event video for playback (from local storage only)."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    if event.file_path and os.path.exists(event.file_path):
+        if not event.is_downloaded:
+            event.is_downloaded = True
+            await db.commit()
+        # Guess content type based on extension
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(event.filename)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+        return FileResponse(event.file_path, media_type=mime_type, filename=event.filename)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Local event file not found"
+        )
+
+@router.get("/{event_id}/sync-status")
+async def get_event_sync_status(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("view_events"))
+) -> Any:
+    """Return sync status for an event: present on server (FTP/local) and on camera."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    on_server = bool(event.file_path and os.path.exists(event.file_path))
+    # Check on camera
+    camera_result = await db.execute(select(Camera).where(Camera.id == event.camera_id))
+    camera = camera_result.scalar_one_or_none()
+    on_camera = False
+    if camera:
+        try:
+            async with CameraClient(base_url=camera.base_url) as client:
+                camera_events = await client.get_events()
+                on_camera = any(e.fileName == event.filename for e in camera_events)
+        except Exception as e:
+            logger.warning("Failed to check event on camera", event_id=event_id, error=str(e))
+    event.is_downloaded = on_server
+    await db.commit()
+    return {"on_server": on_server, "on_camera": on_camera}
+
+@router.get("/{event_id}/refresh")
+async def refresh_event_sync_status(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("view_events"))
+) -> Any:
+    """Re-check and update the is_downloaded (Sync) status in the database based on file presence."""
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    on_server = bool(event.file_path and os.path.exists(event.file_path))
+    event.is_downloaded = on_server
+    await db.commit()
+    return {"on_server": on_server} 

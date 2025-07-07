@@ -83,4 +83,53 @@ export async function downloadEvent(eventId: number): Promise<void> {
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
+}
+
+export async function playEvent(eventId: number): Promise<string> {
+  // Returns the URL to stream the video for playback
+  return `${API_BASE_URL}/api/v1/events/${eventId}/play`;
+}
+
+export async function deleteEventLocal(eventId: number): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/api/v1/events/${eventId}/local`, {
+    method: 'DELETE',
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function deleteEventFromCamera(eventId: number): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/api/v1/events/${eventId}`, {
+    method: 'DELETE',
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function getEventSyncStatus(eventId: number): Promise<{on_server: boolean, on_camera: boolean}> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/api/v1/events/${eventId}/sync-status`, {
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function refreshEventSyncStatus(eventId: number): Promise<{on_server: boolean}> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/api/v1/events/${eventId}/refresh`, {
+    headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 } 

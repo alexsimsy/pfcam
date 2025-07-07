@@ -427,39 +427,81 @@ async def get_application_settings(
             detail="Failed to get application settings"
         )
 
-@router.patch("/application/settings", response_model=ApplicationSettingsResponse)
+@router.put("/application/settings", response_model=ApplicationSettingsResponse)
 async def update_application_settings(
-    settings_update: ApplicationSettingsUpdate,
+    settings_data: ApplicationSettingsUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
+    current_user: User = Depends(require_permission("manage_settings"))
+) -> Any:
     """Update application settings"""
-    try:
-        # Get the first (and only) settings record
-        result = await db.execute(select(ApplicationSettings).limit(1))
-        settings = result.scalar_one_or_none()
-        
-        if not settings:
-            # Create default settings if none exist
-            settings = ApplicationSettings()
-            db.add(settings)
-        
-        # Update only provided fields
-        update_data = settings_update.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(settings, field, value)
-        
-        await db.commit()
-        await db.refresh(settings)
-        
-        logger.info("Application settings updated", user_id=current_user.id)
-        return settings
-    except Exception as e:
-        logger.error("Failed to update application settings", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update application settings"
-        )
+    
+    # Get the first (and only) settings record
+    result = await db.execute(select(ApplicationSettings).limit(1))
+    settings = result.scalar_one_or_none()
+    
+    if not settings:
+        # Create default settings if none exist
+        settings = ApplicationSettings()
+        db.add(settings)
+    
+    # Check if auto_download_events is being changed
+    auto_download_changed = (
+        settings_data.auto_download_events is not None and 
+        settings_data.auto_download_events != settings.auto_download_events
+    )
+    
+    # Update fields
+    update_data = settings_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(settings, field, value)
+    
+    await db.commit()
+    await db.refresh(settings)
+    
+    # Handle FTP configuration based on auto_download_events setting
+    if auto_download_changed:
+        try:
+            # Get all active cameras
+            cameras_result = await db.execute(
+                select(Camera).where(Camera.is_active == True)
+            )
+            cameras = cameras_result.scalars().all()
+            
+            if settings.auto_download_events:
+                # Enable FTP on all cameras
+                logger.info("Auto-download enabled, configuring FTP on all cameras")
+                for camera in cameras:
+                    try:
+                        async with CameraClient(base_url=camera.base_url) as client:
+                            await client.configure_ftp()
+                            logger.info(f"FTP configured for camera {camera.id} ({camera.name})")
+                    except Exception as e:
+                        logger.error(f"Failed to configure FTP for camera {camera.id}", error=str(e))
+            else:
+                # Disable FTP on all cameras
+                logger.info("Auto-download disabled, clearing FTP settings on all cameras")
+                for camera in cameras:
+                    try:
+                        async with CameraClient(base_url=camera.base_url) as client:
+                            # Clear FTP settings by setting empty values
+                            await client.configure_ftp(
+                                ftp_host="",
+                                ftp_user="",
+                                ftp_password="",
+                                ftp_recordings=False,
+                                ftp_snapshots=False
+                            )
+                            logger.info(f"FTP disabled for camera {camera.id} ({camera.name})")
+                    except Exception as e:
+                        logger.error(f"Failed to disable FTP for camera {camera.id}", error=str(e))
+                        
+        except Exception as e:
+            logger.error("Failed to handle FTP configuration", error=str(e))
+            # Don't fail the settings update if FTP config fails
+    
+    logger.info("Application settings updated", user_id=current_user.id, auto_download_events=settings.auto_download_events)
+    
+    return ApplicationSettingsResponse.from_orm(settings)
 
 @router.post("/application/settings/reset")
 async def reset_application_settings(

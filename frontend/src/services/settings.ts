@@ -35,7 +35,7 @@ export async function fetchApplicationSettings(): Promise<ApplicationSettings> {
 
 export async function updateApplicationSettings(updates: Partial<ApplicationSettings>): Promise<ApplicationSettings> {
   const response = await fetch(`${API_BASE_URL}/api/v1/settings/application/settings`, {
-    method: 'PATCH',
+    method: 'PUT',
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`,
       'Content-Type': 'application/json',

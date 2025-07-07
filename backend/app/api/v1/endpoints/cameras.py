@@ -142,6 +142,25 @@ async def create_camera(
     await db.commit()
     await db.refresh(camera)
     
+    # Check if auto-download is enabled and configure FTP automatically
+    try:
+        from app.models.settings import ApplicationSettings
+        app_settings_result = await db.execute(select(ApplicationSettings).limit(1))
+        app_settings = app_settings_result.scalar_one_or_none()
+        
+        if app_settings and app_settings.auto_download_events:
+            logger.info(f"Auto-download enabled, configuring FTP for new camera {camera.id}")
+            try:
+                async with CameraClient(base_url=camera.base_url) as client:
+                    await client.configure_ftp()
+                    logger.info(f"FTP configured for new camera {camera.id} ({camera.name})")
+            except Exception as e:
+                logger.error(f"Failed to configure FTP for new camera {camera.id}", error=str(e))
+                # Don't fail camera creation if FTP config fails
+    except Exception as e:
+        logger.error("Failed to check auto-download settings", error=str(e))
+        # Don't fail camera creation if settings check fails
+    
     logger.info("Camera created", camera_id=camera.id, name=camera.name)
     # Update MediaMTX config and reload
     await update_mediamtx_config_and_reload(db)
@@ -611,4 +630,81 @@ async def refresh_camera_mediamtx(
         subprocess.run(["docker", "compose", "restart", "mediamtx"], check=True)
     except Exception as e:
         pass
-    return {"message": f"MediaMTX config refreshed for camera {camera_id} and service reloaded."} 
+    return {"message": f"MediaMTX config refreshed for camera {camera_id} and service reloaded."}
+
+@router.post("/{camera_id}/configure-ftp")
+async def configure_camera_ftp(
+    camera_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("manage_cameras"))
+) -> Any:
+    """Configure the camera's FTP settings to point to the backend FTP server."""
+    result = await db.execute(select(Camera).where(Camera.id == camera_id))
+    camera = result.scalar_one_or_none()
+    if not camera:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Camera not found"
+        )
+    try:
+        async with CameraClient(base_url=camera.base_url) as client:
+            await client.configure_ftp()
+            logger.info("Camera FTP configured via API", camera_id=camera_id)
+            return {"message": "Camera FTP settings updated successfully"}
+    except Exception as e:
+        logger.error("Failed to configure camera FTP", camera_id=camera_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to configure camera FTP"
+        )
+
+@router.post("/configure-ftp-all")
+async def configure_all_cameras_ftp(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("manage_cameras"))
+) -> Any:
+    """Configure FTP settings on all active cameras."""
+    try:
+        # Get all active cameras
+        cameras_result = await db.execute(
+            select(Camera).where(Camera.is_active == True)
+        )
+        cameras = cameras_result.scalars().all()
+        
+        if not cameras:
+            return {"message": "No active cameras found"}
+        
+        success_count = 0
+        failed_count = 0
+        failed_cameras = []
+        
+        for camera in cameras:
+            try:
+                async with CameraClient(base_url=camera.base_url) as client:
+                    await client.configure_ftp()
+                    logger.info(f"FTP configured for camera {camera.id} ({camera.name})")
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to configure FTP for camera {camera.id}", error=str(e))
+                failed_count += 1
+                failed_cameras.append({"id": camera.id, "name": camera.name, "error": str(e)})
+        
+        logger.info("Bulk FTP configuration completed", 
+                   total=len(cameras), 
+                   success=success_count, 
+                   failed=failed_count)
+        
+        return {
+            "message": f"FTP configuration completed for {success_count} cameras",
+            "total_cameras": len(cameras),
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "failed_cameras": failed_cameras
+        }
+        
+    except Exception as e:
+        logger.error("Failed to configure FTP on all cameras", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to configure FTP on all cameras"
+        ) 

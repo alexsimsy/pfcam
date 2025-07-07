@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { fetchApplicationSettings, updateApplicationSettings, resetApplicationSettings } from '../services/settings';
 import type { ApplicationSettings } from '../services/settings';
 import { fetchUsers, createUser, updateUser, deleteUser, activateUser, deactivateUser } from '../services/users';
 import type { User, UserCreate, UserUpdate } from '../services/users';
 import { useApi } from '../hooks/useApi';
 import { useAppState } from '../contexts/AppStateContext';
-import { fetchCameras, updateCameraSystemSettings } from '../services/cameras';
+import { fetchCameras, updateCameraSystemSettings, configureAllCamerasFtp } from '../services/cameras';
 import type { Camera } from '../services/cameras';
 
 export default function Settings() {
@@ -21,37 +21,28 @@ export default function Settings() {
     role: 'viewer'
   });
   const [localSettings, setLocalSettings] = useState<ApplicationSettings | null>(null);
+  const [configuringFtp, setConfiguringFtp] = useState(false);
 
   const { data: settings, loading, error } = useApi(
     fetchApplicationSettings,
-    [], // Empty dependencies - only fetch once
+    [],
     {
-      onError: (err) => {
-        dispatch({ type: 'ADD_ERROR', payload: err.message });
-        // Set default settings if API fails
-        return {
-          id: 1,
-          live_quality_level: 50,
-          recording_quality_level: 50,
-          heater_level: 0,
-          picture_rotation: 90,
-          store_data_on_camera: true,
-          auto_download_events: false,
-          event_retention_days: 30,
-          snapshot_retention_days: 7,
-          mobile_data_saving: true,
-          low_bandwidth_mode: false,
-          pre_event_recording_seconds: 10,
-          post_event_recording_seconds: 10,
-          created_at: new Date().toISOString(),
-        };
-      }
+      onSuccess: (data) => setLocalSettings(data),
+      onError: (err) => dispatch({ type: 'ADD_ERROR', payload: err.message })
     }
   );
 
   const { data: users, loading: usersLoading, error: usersError } = useApi(
     fetchUsers,
     [], // Empty dependencies - only fetch once
+    {
+      onError: (err) => dispatch({ type: 'ADD_ERROR', payload: err.message })
+    }
+  );
+
+  const { data: cameras } = useApi(
+    fetchCameras,
+    [],
     {
       onError: (err) => dispatch({ type: 'ADD_ERROR', payload: err.message })
     }
@@ -249,6 +240,27 @@ export default function Settings() {
     });
   };
 
+  const handleConfigureFtpAll = async () => {
+    setConfiguringFtp(true);
+    try {
+      const result = await configureAllCamerasFtp();
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { 
+          message: `FTP configured for ${result.success_count} cameras${result.failed_count > 0 ? ` (${result.failed_count} failed)` : ''}`, 
+          type: result.failed_count > 0 ? 'error' : 'success' 
+        } 
+      });
+    } catch (err: any) {
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: err.message || 'Failed to configure FTP', type: 'error' } 
+      });
+    } finally {
+      setConfiguringFtp(false);
+    }
+  };
+
   if (loading) {
     return (
       <div>
@@ -441,24 +453,46 @@ export default function Settings() {
               </label>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-simsy-text">Auto-download Events</h3>
-                <p className="text-sm text-simsy-text">Automatically download events to application storage</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-simsy-text">Auto-download Events</h3>
+                  <p className="text-sm text-simsy-text">
+                    Automatically download events to application storage via FTP. 
+                    When enabled, cameras will be configured to send event files to the server.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={localSettings?.auto_download_events || false}
+                    onChange={(e) => {
+                      setLocalSettings(prev => prev ? { ...prev, auto_download_events: e.target.checked } : null);
+                      updateSetting('auto_download_events', e.target.checked);
+                    }}
+                    disabled={saving}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-simsy-dark peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-simsy-blue"></div>
+                </label>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={localSettings?.auto_download_events || false}
-                  onChange={(e) => {
-                    setLocalSettings(prev => prev ? { ...prev, auto_download_events: e.target.checked } : null);
-                    updateSetting('auto_download_events', e.target.checked);
-                  }}
-                  disabled={saving}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-simsy-dark peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-simsy-blue"></div>
-              </label>
+              
+              {localSettings?.auto_download_events && cameras && cameras.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-simsy-text">
+                      Configure FTP on all existing cameras ({cameras.length} cameras)
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleConfigureFtpAll}
+                    disabled={configuringFtp}
+                    className="bg-simsy-blue hover:bg-blue-600 text-white px-4 py-2 rounded shadow disabled:opacity-50"
+                  >
+                    {configuringFtp ? 'Configuring...' : 'Configure FTP on All Cameras'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
