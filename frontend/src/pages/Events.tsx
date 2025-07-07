@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchEvents, downloadEvent, playEvent, deleteEventLocal, deleteEventFromCamera, getEventSyncStatus } from '../services/events';
+import { fetchEvents, downloadEvent, playEvent, deleteEventLocal, deleteEventFromCamera, getEventSyncStatus, syncEvents } from '../services/events';
 import { useApi } from '../hooks/useApi';
 import { useAppState } from '../contexts/AppStateContext';
 import type { Event } from '../services/events';
@@ -11,7 +11,8 @@ export default function Events() {
   const [playingEventName, setPlayingEventName] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [triggering, setTriggering] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{[key: number]: {on_server: boolean, on_camera: boolean}}>({});
+  const [syncStatus, setSyncStatus] = useState<{[key: number]: {on_server: boolean, on_camera: boolean, in_ftp?: boolean}}>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data: events, loading, error } = useApi(
     fetchEvents,
@@ -144,19 +145,36 @@ export default function Events() {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await syncEvents();
+      // Re-fetch events after sync
+      if (typeof window !== 'undefined') {
+        // If using SWR or react-query, trigger revalidation here instead
+        window.location.reload(); // fallback if not using SWR/react-query
+      }
+    } catch (err: any) {
+      dispatch({ type: 'ADD_ERROR', payload: err.message || 'Failed to sync events' });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   if (loading) return <div className="p-4">Loading events...</div>;
   if (error) return <div className="p-4 text-red-500">Error: {error.message}</div>;
 
   return (
-    <div className="p-4">
+    <div className="p-4 bg-simsy-bg min-h-screen">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-simsy-text">Events</h1>
         <div className="flex gap-2">
           <button
-            onClick={() => window.location.reload()}
-            className="bg-simsy-primary text-white px-4 py-2 rounded hover:bg-simsy-primary-dark"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="bg-simsy-blue text-white px-4 py-2 rounded hover:bg-simsy-dark hover:text-simsy-blue transition disabled:opacity-50"
           >
-            Refresh
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
           <button
             onClick={handleTriggerEvent}
@@ -168,14 +186,16 @@ export default function Events() {
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border border-gray-300">
+        <table className="min-w-full bg-simsy-card border border-simsy-dark text-simsy-text rounded-lg overflow-hidden">
           <thead>
-            <tr className="bg-gray-50">
+            <tr className="bg-simsy-dark text-simsy-blue">
               <th className="px-4 py-2 border-b">Filename</th>
               <th className="px-4 py-2 border-b">Event Name</th>
               <th className="px-4 py-2 border-b">Camera</th>
               <th className="px-4 py-2 border-b">Triggered At</th>
-              <th className="px-4 py-2 border-b">Sync</th>
+              <th className="px-4 py-2 border-b">On Camera</th>
+              <th className="px-4 py-2 border-b">In FTP</th>
+              <th className="px-4 py-2 border-b">Downloaded</th>
               <th className="px-4 py-2 border-b">Actions</th>
             </tr>
           </thead>
@@ -184,14 +204,25 @@ export default function Events() {
               const status = syncStatus[event.id];
               const isOnServer = status?.on_server || event.is_downloaded;
               const isOnCamera = status?.on_camera !== false;
+              const isInFtp = status?.in_ftp === true;
               return (
-                <tr key={event.id} className="hover:bg-gray-50">
+                <tr key={event.id} className="hover:bg-simsy-dark/80">
                   <td className="px-4 py-2 border-b">{event.filename}</td>
                   <td className="px-4 py-2 border-b">{event.event_name || 'N/A'}</td>
                   <td className="px-4 py-2 border-b">{event.camera_name}</td>
                   <td className="px-4 py-2 border-b">{new Date(event.triggered_at).toLocaleString()}</td>
                   <td className="px-4 py-2 border-b">
-                    <span className={isOnServer ? 'text-green-600' : 'text-red-600'}>
+                    <span className={isOnCamera ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+                      {isOnCamera ? 'Yes' : 'No'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 border-b">
+                    <span className={isInFtp ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+                      {isInFtp ? 'Yes' : 'No'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 border-b">
+                    <span className={isOnServer ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
                       {isOnServer ? 'Yes' : 'No'}
                     </span>
                   </td>

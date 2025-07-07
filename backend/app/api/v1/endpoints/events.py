@@ -280,6 +280,7 @@ async def sync_events(
     current_user: User = Depends(require_permission("view_events"))
 ) -> Any:
     """Sync events from camera API and FTP directory to database"""
+    logger.info("/sync endpoint called", camera_id=camera_id)
     try:
         # 1. Sync from camera API (existing logic)
         # If camera_id is provided, get the camera details
@@ -351,35 +352,61 @@ async def sync_events(
                         logger.info("Events synced for camera", camera_id=camera.id, new_count=len(new_events))
                         
             except Exception as e:
-                logger.error("Failed to sync events for camera", camera_id=camera.id, error=str(e))
-                # Continue with other cameras even if one fails
+                logger.error("Exception in camera sync loop", camera_id=camera.id, error=str(e))
                 continue
         
         # Commit all changes
         await db.commit()
+        logger.info("Camera sync section complete, entering FTP sync section")
 
         # 2. Sync from FTP directory
         ftp_dir = os.path.abspath(os.path.join(os.getcwd(), "ftpdata"))
+        ftp_files_processed = 0
+        ftp_files_updated = 0
+        ftp_files_created = 0
+        logger.info("FTP sync: entering FTP sync section", ftp_dir=ftp_dir)
         if os.path.exists(ftp_dir):
-            for fname in os.listdir(ftp_dir):
-                if not fname.lower().endswith(('.mp4', '.avi', '.mov')):
-                    continue
-                file_path = os.path.join(ftp_dir, fname)
-                # Check if event already exists
-                result = await db.execute(select(Event).where(Event.filename == fname))
-                event = result.scalar_one_or_none()
-                if not event:
-                    # Create a new event record with minimal info
-                    event = Event(
-                        filename=fname,
-                        event_name=None,
-                        triggered_at=datetime.fromtimestamp(os.path.getmtime(file_path)),
-                        file_path=file_path,
-                        is_downloaded=True,
-                        is_deleted=False
-                    )
-                    db.add(event)
-            await db.commit()
+            logger.info("FTP sync: directory exists", ftp_dir=ftp_dir)
+            try:
+                files_in_dir = os.listdir(ftp_dir)
+                logger.info("FTP sync: files in directory", files_count=len(files_in_dir), files=files_in_dir)
+                for fname in files_in_dir:
+                    if not fname.lower().endswith((".mp4", ".avi", ".mov")):
+                        logger.info("FTP sync: skipping non-video file", filename=fname)
+                        continue
+                    file_path = os.path.join(ftp_dir, fname)
+                    logger.info("FTP sync: found file", filename=fname, file_path=file_path)
+                    # Check if event already exists
+                    result = await db.execute(select(Event).where(Event.filename == fname))
+                    event = result.scalar_one_or_none()
+                    if event:
+                        # Update file_path and is_downloaded if not already set
+                        event.file_path = file_path
+                        event.is_downloaded = True
+                        await db.commit()
+                        logger.info("FTP sync: updated event", event_id=event.id, filename=fname)
+                        ftp_files_updated += 1
+                    else:
+                        # Create new event
+                        event = Event(
+                            filename=fname,
+                            file_path=file_path,
+                            is_downloaded=True,
+                            camera_id=1,  # Default camera ID
+                            event_name="Motion Event",
+                            triggered_at=datetime.now()
+                        )
+                        db.add(event)
+                        await db.commit()
+                        logger.info("FTP sync: created new event", event_id=event.id, filename=fname)
+                        ftp_files_created += 1
+                    ftp_files_processed += 1
+            except Exception as e:
+                logger.error("FTP sync: exception in FTP sync loop", error=str(e), exc_info=True)
+        else:
+            logger.warning("FTP sync: directory does not exist", ftp_dir=ftp_dir)
+        
+        logger.info("FTP sync: summary", processed=ftp_files_processed, updated=ftp_files_updated, created=ftp_files_created)
 
         return {
             "message": "Events synced from camera and FTP directory",
@@ -596,9 +623,15 @@ async def get_event_sync_status(
                 on_camera = any(e.fileName == event.filename for e in camera_events)
         except Exception as e:
             logger.warning("Failed to check event on camera", event_id=event_id, error=str(e))
+    # Check in FTP directory
+    ftp_dir = os.path.abspath(os.path.join(os.getcwd(), "ftpdata"))
+    in_ftp = False
+    if os.path.exists(ftp_dir):
+        ftp_file_path = os.path.join(ftp_dir, event.filename)
+        in_ftp = os.path.exists(ftp_file_path)
     event.is_downloaded = on_server
     await db.commit()
-    return {"on_server": on_server, "on_camera": on_camera}
+    return {"on_server": on_server, "on_camera": on_camera, "in_ftp": in_ftp}
 
 @router.get("/{event_id}/refresh")
 async def refresh_event_sync_status(
