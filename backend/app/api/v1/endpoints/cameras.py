@@ -1,5 +1,5 @@
 from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from datetime import datetime, timedelta
@@ -426,26 +426,31 @@ async def take_camera_snapshot(
 @router.post("/{camera_id}/trigger-event")
 async def trigger_camera_event(
     camera_id: int,
-    pre_event_seconds: int = 10,
-    post_event_seconds: int = 10,
+    pre_event_seconds: int = Body(10),
+    post_event_seconds: int = Body(10),
+    event_name: str = Body("string"),
+    overlay_text: str = Body("string"),
+    stop_other_events: str = Body("none"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("manage_cameras"))
 ) -> Any:
     """Trigger an event on the specified camera"""
-    
     result = await db.execute(select(Camera).where(Camera.id == camera_id))
     camera = result.scalar_one_or_none()
-    
     if not camera:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Camera not found"
         )
-    
     try:
         async with CameraClient(base_url=camera.base_url) as client:
-            success = await client.trigger_event(pre_event_seconds, post_event_seconds)
-            
+            success = await client.trigger_event(
+                pre_event_seconds,
+                post_event_seconds,
+                event_name,
+                overlay_text,
+                stop_other_events
+            )
             if success:
                 logger.info("Event triggered successfully", camera_id=camera_id, user_id=current_user.id)
                 return {"message": "Event triggered successfully"}
@@ -454,7 +459,6 @@ async def trigger_camera_event(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to trigger event"
                 )
-            
     except Exception as e:
         logger.error("Failed to trigger event", camera_id=camera_id, error=str(e))
         raise HTTPException(

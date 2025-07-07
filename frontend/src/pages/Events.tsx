@@ -91,16 +91,19 @@ export default function Events() {
     }
     setTriggering(true);
     try {
-      // Update camera system settings with pre/post event times from app settings
-      if (appSettings) {
-        await updateCameraSystemSettings(Number(filters.cameraId), {
-          recording_seconds_post_event: appSettings.post_event_recording_seconds,
-          recording_seconds_post_event_extended: appSettings.post_event_recording_seconds,
-          recording_seconds_pre_event: appSettings.pre_event_recording_seconds,
-          recording_seconds_pre_event_extended: appSettings.pre_event_recording_seconds * 7
-        });
-      }
-      await triggerEvent(Number(filters.cameraId));
+      // Removed settings update to avoid camera restart
+      // Find the selected camera's name
+      const selectedCamera = cameras?.find((cam) => cam.id === Number(filters.cameraId));
+      const overlayText = selectedCamera ? selectedCamera.name : "";
+      await triggerEvent(
+        Number(filters.cameraId),
+        appSettings?.pre_event_recording_seconds || 8,
+        appSettings?.post_event_recording_seconds || 7,
+        "string", // eventName (can be customized)
+        overlayText,
+        true, // postEventUnlimited
+        "none" // stopOtherEvents
+      );
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { message: 'Event triggered successfully', type: 'success' } 

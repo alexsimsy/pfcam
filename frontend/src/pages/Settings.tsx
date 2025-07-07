@@ -209,18 +209,30 @@ export default function Settings() {
 
   // Helper to update all cameras' settings
   const updateAllCamerasSettings = async (settings: any) => {
+    let anySuccess = false;
     try {
       const cameras: Camera[] = await fetchCameras();
       await Promise.all(
         cameras.map((cam) =>
-          updateCameraSystemSettings(cam.id, settings).catch((err) => {
-            dispatch({
-              type: 'ADD_NOTIFICATION',
-              payload: { message: `Failed to update camera ${cam.name}: ${err.message}`, type: 'error' },
-            });
-          })
+          updateCameraSystemSettings(cam.id, settings)
+            .then(() => { anySuccess = true; })
+            .catch((err) => {
+              dispatch({
+                type: 'ADD_NOTIFICATION',
+                payload: { message: `Failed to update camera ${cam.name}: ${err.message}`, type: 'error' },
+              });
+            })
         )
       );
+      if (anySuccess) {
+        dispatch({
+          type: 'ADD_NOTIFICATION',
+          payload: {
+            message: 'Settings update sent. The camera may reboot and be unavailable for up to 1 minute. Please refresh after that to verify the change.',
+            type: 'success',
+          },
+        });
+      }
     } catch (err: any) {
       dispatch({
         type: 'ADD_NOTIFICATION',

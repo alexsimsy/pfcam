@@ -3,7 +3,4 @@ apiAddress: :9997
 hlsAlwaysRemux: true
 hlsSegmentCount: 3
 hlsSegmentDuration: 1s
-paths:
-  NewTest:
-    source: rtsp://192.168.86.199:8554/
-    sourceOnDemand: true
+paths: {}

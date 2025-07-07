@@ -57,7 +57,7 @@ export async function createCamera(data: CameraCreate): Promise<Camera> {
 }
 
 export async function updateCameraSystemSettings(cameraId: number, settings: any): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/${cameraId}/system/settings`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/settings/${cameraId}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(settings),
@@ -66,16 +66,24 @@ export async function updateCameraSystemSettings(cameraId: number, settings: any
 }
 
 export async function triggerEvent(
-  cameraId: number, 
-  preEventSeconds: number = 10, 
-  postEventSeconds: number = 10
+  cameraId: number,
+  preEventSeconds: number = 10,
+  postEventSeconds: number = 10,
+  eventName: string = "string",
+  overlayText: string = "string",
+  postEventUnlimited: boolean = true,
+  stopOtherEvents: string = "none"
 ): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/v1/cameras/${cameraId}/trigger-event`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
       pre_event_seconds: preEventSeconds,
-      post_event_seconds: postEventSeconds
+      post_event_seconds: postEventSeconds,
+      event_name: eventName,
+      overlay_text: overlayText,
+      post_event_unlimited: postEventUnlimited,
+      stop_other_events: stopOtherEvents
     }),
   });
   if (!res.ok) throw new Error(await res.text());

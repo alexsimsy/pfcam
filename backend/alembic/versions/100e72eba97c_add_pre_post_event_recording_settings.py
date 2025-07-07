@@ -7,6 +7,7 @@ Create Date: 2025-07-07 06:58:32.810813
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -30,11 +31,19 @@ def upgrade() -> None:
     op.alter_column('application_settings', 'pre_event_recording_seconds', nullable=False)
     op.alter_column('application_settings', 'post_event_recording_seconds', nullable=False)
     
-    # Drop old columns if they exist
-    op.drop_column('application_settings', 'post_event_seconds')
-    op.drop_column('application_settings', 'pre_event_seconds')
-    op.drop_column('application_settings', 'live_stream_quality')
-    op.drop_column('application_settings', 'recording_quality')
+    # Drop old columns if they exist (conditional drops)
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('application_settings')]
+    
+    if 'post_event_seconds' in columns:
+        op.drop_column('application_settings', 'post_event_seconds')
+    if 'pre_event_seconds' in columns:
+        op.drop_column('application_settings', 'pre_event_seconds')
+    if 'live_stream_quality' in columns:
+        op.drop_column('application_settings', 'live_stream_quality')
+    if 'recording_quality' in columns:
+        op.drop_column('application_settings', 'recording_quality')
     # ### end Alembic commands ###
 
 

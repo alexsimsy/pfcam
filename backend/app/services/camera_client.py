@@ -1,4 +1,4 @@
-import aiohttp
+import httpx
 import asyncio
 from typing import List, Dict, Optional, Any
 from datetime import datetime
@@ -137,24 +137,22 @@ class CameraClient:
     def __init__(self, base_url: str = None, timeout: int = None):
         self.base_url = base_url or settings.CAMERA_BASE_URL
         self.timeout = timeout or settings.CAMERA_TIMEOUT
-        self.session: Optional[aiohttp.ClientSession] = None
         self.retry_attempts = settings.CAMERA_RETRY_ATTEMPTS
+        self.client: Optional[httpx.AsyncClient] = None
         
     async def __aenter__(self):
         """Async context manager entry"""
-        self.session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=self.timeout)
-        )
+        self.client = httpx.AsyncClient(timeout=self.timeout)
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit"""
-        if self.session:
-            await self.session.close()
+        if self.client:
+            await self.client.aclose()
     
     async def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make HTTP request to camera API with retry logic"""
-        if not self.session:
+        if not self.client:
             raise RuntimeError("CameraClient not initialized. Use async context manager.")
 
         # Normalize base_url to avoid double /api
@@ -165,15 +163,15 @@ class CameraClient:
 
         for attempt in range(self.retry_attempts):
             try:
-                async with self.session.request(method, url, **kwargs) as response:
-                    response.raise_for_status()
-                    
-                    if response.content_type == "application/json":
-                        return await response.json()
-                    else:
-                        return await response.read()
+                response = await self.client.request(method, url, **kwargs)
+                response.raise_for_status()
+                
+                if response.headers.get("content-type", "").startswith("application/json"):
+                    return response.json()
+                else:
+                    return response.content
                         
-            except aiohttp.ClientError as e:
+            except httpx.HTTPError as e:
                 logger.warning(
                     "Camera API request failed",
                     attempt=attempt + 1,
@@ -339,7 +337,7 @@ class CameraClient:
                 raise ValueError("Snapshot URL not available")
             
             # Make a direct request to the snapshot URL
-            if not self.session:
+            if not self.client:
                 raise RuntimeError("CameraClient not initialized. Use async context manager.")
             
             # If it's a relative URL, construct the full URL
@@ -348,7 +346,7 @@ class CameraClient:
             else:
                 full_url = snapshot_url
             
-            async with self.session.get(full_url) as response:
+            async with self.client.get(full_url) as response:
                 response.raise_for_status()
                 return await response.read()
                 
@@ -356,19 +354,30 @@ class CameraClient:
             logger.error("Failed to take snapshot", stream_name=stream_name, error=str(e))
             raise
 
-    async def trigger_event(self, pre_event_seconds: int = 10, post_event_seconds: int = 10) -> bool:
-        """Trigger an event on the camera with specified pre/post recording times"""
+    async def trigger_event(
+        self,
+        pre_event_seconds: int = 10,
+        post_event_seconds: int = 10,
+        event_name: str = "string",
+        overlay_text: str = "string",
+        stop_other_events: str = "none"
+    ) -> bool:
+        # Always send a fixed post-event duration (default 10s)
         payload = {
-            "postEventUnlimited": False,
+            "eventName": event_name,
+            "overlayText": overlay_text,
             "preEventSeconds": pre_event_seconds,
-            "postEventSeconds": post_event_seconds
+            "postEventSeconds": post_event_seconds,
+            "postEventUnlimited": False,
+            "stopOtherEvents": stop_other_events
         }
-        
+        logger.info("Triggering camera event", payload=payload)
         try:
             response = await self._make_request("POST", "/events", json=payload)
+            logger.info("Camera event triggered successfully", response=response)
             return True
         except Exception as e:
-            logger.error("Failed to trigger event", error=str(e))
+            logger.error("Failed to trigger event", error=str(e), payload=payload)
             return False
 
 # Factory function for creating camera client
