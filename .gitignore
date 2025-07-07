@@ -42,4 +42,8 @@ backend/alembic/versions/*.pyc
 # Misc
 *.bak
 *.tmp
-*.old 
+*.old
+
+# Database and data files
+backend/app/app.db
+ftpdata/ 
