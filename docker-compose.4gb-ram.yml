@@ -1,0 +1,266 @@
+version: '3.8'
+
+services:
+  # VPN Server for SIMSY Network
+  openvpn:
+    image: kylemanna/openvpn:latest
+    container_name: pfcam-openvpn
+    ports:
+      - "1194:1194/udp"
+    volumes:
+      - ./vpn-config:/etc/openvpn
+      - ./vpn-data:/var/lib/openvpn
+      - ./vpn-scripts:/opt/scripts
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    networks:
+      - pfcam-network
+    environment:
+      - OVPN_SERVER=10.8.0.0/24
+      - OVPN_PROTO=udp
+      - OVPN_PORT=1194
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+    command: >
+      bash -c "
+        if [ ! -f /etc/openvpn/openvpn.conf ]; then
+          echo 'Initializing OpenVPN configuration...'
+          /opt/scripts/init-vpn.sh
+        fi
+        /usr/local/bin/ovpn_run
+      "
+
+  # Database - Optimized for 4GB RAM
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: pfcam
+      POSTGRES_USER: pfcam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pfcam}
+      # PostgreSQL memory optimizations
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-low-memory.conf:/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pfcam -d pfcam"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - pfcam-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  # Backend API - Optimized for 4GB RAM
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://pfcam:${POSTGRES_PASSWORD:-pfcam}@postgres:5432/pfcam
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here-change-in-production}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - STORAGE_PATH=/app/storage
+      - FTP_PUBLIC_HOST=${FTP_PUBLIC_HOST:-localhost}
+      # Python optimizations for low memory
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - UVICORN_WORKERS=1
+      - UVICORN_WORKER_CLASS=sync
+    volumes:
+      - ./backend:/app
+      - storage_data:/app/storage
+      - ./ftpdata:/app/ftpdata
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python manage_db.py migrate &&
+        python init_db.py &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+      "
+    networks:
+      - pfcam-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Frontend - Optimized for 4GB RAM
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+        - GENERATE_SOURCEMAP=false
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_WS_URL=ws://backend:8000/ws
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+      - NODE_ENV=production
+      - GENERATE_SOURCEMAP=false
+    depends_on:
+      - backend
+    networks:
+      - pfcam-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+  # Cache - Optimized for 4GB RAM
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - pfcam-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
+
+  # Reverse Proxy - Optimized for 4GB RAM
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/production.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - pfcam-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+
+  # Video Streaming Server - Optimized for 4GB RAM
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: mediamtx
+    ports:
+      - "8554:8554"   # RTSP
+      - "8888:8888"   # HLS
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+    networks:
+      - pfcam-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # FTP Server - Optimized for 4GB RAM
+  ftp:
+    image: stilliard/pure-ftpd:latest
+    container_name: pfcam-ftp-1
+    ports:
+      - "21:21"
+      - "30000-30009:30000-30009"  # Passive port range
+    environment:
+      - PUBLICHOST=${FTP_PUBLIC_HOST:-localhost}
+      - FTP_USER_NAME=${FTP_USER_NAME:-ftpuser}
+      - FTP_USER_PASS=${FTP_USER_PASS:-ftppass}
+      - FTP_USER_HOME=/home/ftpuser/ftp
+      - ADDED_FLAGS=--passiveportrange 30000:30009
+    volumes:
+      - ./ftpdata:/home/ftpuser/ftp
+    networks:
+      - pfcam-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+
+  # VPN Monitor - Minimal resource usage
+  vpn-monitor:
+    image: alpine:latest
+    container_name: pfcam-vpn-monitor
+    volumes:
+      - ./vpn-logs:/var/log/openvpn
+      - ./vpn-monitor:/opt/monitor
+    command: >
+      sh -c "
+        apk add --no-cache curl jq &&
+        while true; do
+          echo 'Checking VPN status...' &&
+          if [ -f /var/log/openvpn/openvpn-status.log ]; then
+            echo 'VPN Status:' &&
+            cat /var/log/openvpn/openvpn-status.log
+          fi &&
+          sleep 60
+        done
+      "
+    depends_on:
+      - openvpn
+    networks:
+      - pfcam-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+        reservations:
+          memory: 16M
+
+networks:
+  pfcam-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+  redis_data:
+  storage_data:
+  vpn-config:
+  vpn-data:
+  vpn-logs:
+  vpn-monitor: 
