@@ -21,6 +21,14 @@ class SettingsUpdate(BaseModel):
     recording_resolution_width: Optional[int] = None
     recording_quality_level: Optional[int] = None
     
+    # Live stream settings
+    live_quality_level: Optional[int] = None
+    live_resolution_width: Optional[int] = None
+    
+    # Camera settings
+    heater_level: Optional[int] = None
+    picture_rotation: Optional[int] = None
+    
     # Exposure settings
     exposure_iso: Optional[int] = None
     exposure_shutter: Optional[int] = None
@@ -59,9 +67,7 @@ class OverlaySettings(BaseModel):
 class ApplicationSettingsBase(BaseModel):
     auto_start_streams: bool = False
     stream_quality: str = 'medium'
-    store_data_on_camera: bool = True
-    auto_download_events: bool = False
-    auto_download_snapshots: bool = False
+    data_retention_enabled: bool = True
     event_retention_days: int = 30
     snapshot_retention_days: int = 7
     mobile_data_saving: bool = True
@@ -75,9 +81,7 @@ class ApplicationSettingsCreate(ApplicationSettingsBase):
 class ApplicationSettingsUpdate(BaseModel):
     auto_start_streams: Optional[bool] = None
     stream_quality: Optional[str] = None
-    store_data_on_camera: Optional[bool] = None
-    auto_download_events: Optional[bool] = None
-    auto_download_snapshots: Optional[bool] = None
+    data_retention_enabled: Optional[bool] = None
     event_retention_days: Optional[int] = None
     snapshot_retention_days: Optional[int] = None
     mobile_data_saving: Optional[bool] = None

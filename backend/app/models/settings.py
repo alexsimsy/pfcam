@@ -17,11 +17,8 @@ class ApplicationSettings(Base):
     heater_level = Column(Integer, default=0, nullable=False)  # 0=off, 1=low, 2=med, 3=high
     picture_rotation = Column(Integer, default=90, nullable=False)  # 0, 90, 180, 270 degrees
     
-    # Storage settings
-    store_data_on_camera = Column(Boolean, default=True, nullable=False)
-    auto_download_events = Column(Boolean, default=False, nullable=False)
-    
-    # Retention settings
+    # Data retention settings
+    data_retention_enabled = Column(Boolean, default=True, nullable=False)
     event_retention_days = Column(Integer, default=30, nullable=False)
     snapshot_retention_days = Column(Integer, default=7, nullable=False)
     

@@ -4,8 +4,7 @@ export interface ApplicationSettings {
   recording_quality_level: number;
   heater_level: number;
   picture_rotation: number;
-  store_data_on_camera: boolean;
-  auto_download_events: boolean;
+  data_retention_enabled: boolean;
   event_retention_days: number;
   snapshot_retention_days: number;
   mobile_data_saving: boolean;
