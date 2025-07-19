@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     CAMERA_TIMEOUT: int = 30
     CAMERA_RETRY_ATTEMPTS: int = 3
     
+    # Time synchronization settings
+    TIME_SYNC_CHECK_INTERVAL: int = 86400  # 24 hours (once per day)
+    TIME_SYNC_MAX_DRIFT: int = 60  # 60 seconds
+    TIME_SYNC_CAMERA_DEFAULT_NTP: str = "192.168.100.254"  # Camera's default NTP
+    
     # File storage
     STORAGE_PATH: str = "/app/data"
     S3_BUCKET: Optional[str] = None

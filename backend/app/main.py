@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.api.v1.api import api_router
 from app.core.logging import setup_logging
+from app.services.time_sync_service import start_time_sync_service, stop_time_sync_service
 
 # Setup logging
 setup_logging()
@@ -22,10 +23,20 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
     
+    # Start background services
+    logger.info("Starting background services")
+    await start_time_sync_service()
+    logger.info("Time sync service started")
+    
     yield
     
     # Shutdown
     logger.info("Shutting down PFCAM application")
+    
+    # Stop background services
+    logger.info("Stopping background services")
+    await stop_time_sync_service()
+    logger.info("Time sync service stopped")
 
 # Create FastAPI app
 app = FastAPI(

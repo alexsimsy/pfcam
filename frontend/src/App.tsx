@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link, Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
-import Cameras from './pages/Cameras';
 import Events from './pages/Events';
 import Streams from './pages/Streams';
 import Settings from './pages/Settings';
@@ -16,8 +15,7 @@ import Notification from './components/Notification';
 import Admin from './pages/Admin';
 
 const navLinks = [
-  { name: 'Home', path: '/' },
-  { name: 'Cameras', path: '/cameras' },
+  { name: 'Dashboard', path: '/' },
   { name: 'Events', path: '/events' },
   { name: 'Streams', path: '/streams' },
   { name: 'Settings', path: '/settings' },
@@ -79,7 +77,6 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
             <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
-            <Route path="/cameras" element={<RequireAuth><Cameras /></RequireAuth>} />
             <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
             <Route path="/streams" element={<Streams />} />
             <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
