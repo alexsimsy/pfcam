@@ -198,6 +198,97 @@ List events with filtering and pagination.
 #### GET /events/{event_id}
 Get specific event details.
 
+### Tags
+
+#### GET /tags
+List all tags with usage statistics.
+
+**Response:**
+```json
+{
+  "tags": [
+    {
+      "id": 1,
+      "name": "Motion",
+      "color": "#3B82F6",
+      "description": "Motion detection events",
+      "usage_count": 15
+    }
+  ]
+}
+```
+
+#### POST /tags
+Create a new tag.
+
+**Request Body:**
+```json
+{
+  "name": "New Tag",
+  "color": "#EF4444",
+  "description": "Optional description"
+}
+```
+
+#### PUT /tags/{tag_id}
+Update tag information.
+
+**Request Body:**
+```json
+{
+  "name": "Updated Tag",
+  "color": "#10B981",
+  "description": "Updated description"
+}
+```
+
+#### DELETE /tags/{tag_id}
+Delete tag (will remove from all events).
+
+#### GET /tags/{tag_id}/usage
+Get tag usage statistics.
+
+**Response:**
+```json
+{
+  "tag_id": 1,
+  "tag_name": "Motion",
+  "usage_count": 15,
+  "events": [
+    {
+      "id": 1,
+      "filename": "event_20240101_120000.mp4",
+      "triggered_at": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+#### POST /events/{event_id}/tags
+Assign tags to an event.
+
+**Request Body:**
+```json
+{
+  "tag_ids": [1, 2, 3]
+}
+```
+
+#### GET /events/{event_id}/tags
+Get tags assigned to an event.
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Motion",
+    "color": "#3B82F6",
+    "description": "Motion detection events"
+  }
+]
+```
+
 #### GET /events/{event_id}/download
 Download event file (image/video).
 
