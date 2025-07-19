@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.models.tag import event_tags
 
 class Event(Base):
     __tablename__ = "events"
@@ -16,6 +17,9 @@ class Event(Base):
     # User who downloaded/processed the event
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User", back_populates="events")
+    
+    # Tags relationship
+    tags = relationship("Tag", secondary=event_tags, back_populates="events")
     
     # Event information from camera
     filename = Column(String, nullable=False, index=True)
@@ -38,6 +42,8 @@ class Event(Base):
     is_downloaded = Column(Boolean, default=False)
     is_processed = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False)
+    is_orphaned = Column(Boolean, default=False)  # True if event is not on camera and not downloaded
+    is_played = Column(Boolean, default=False, nullable=False)  # True if event has been played/viewed
     
     # Additional metadata
     event_metadata = Column(JSON)  # Store additional event data

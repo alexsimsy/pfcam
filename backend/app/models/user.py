@@ -70,7 +70,7 @@ class User(Base):
         permissions = {
             UserRole.ADMIN: [
                 "view_events", "download_events", "delete_events",
-                "manage_settings", "manage_users", "view_streams",
+                "manage_events", "manage_settings", "manage_users", "view_streams",
                 "manage_system", "view_cameras", "manage_cameras"
             ],
             UserRole.MANAGER: [

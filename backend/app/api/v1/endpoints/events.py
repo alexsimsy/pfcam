@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc
+from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta
 import structlog
 import io
@@ -19,6 +20,32 @@ from app.schemas.events import EventResponse, EventList, EventDownload
 logger = structlog.get_logger()
 router = APIRouter()
 
+def normalize_filename(filename: str) -> str:
+    """
+    Normalize filename for comparison by removing common video extensions.
+    This handles the mismatch between camera API (no extension) and FTP (with extension).
+    """
+    # Remove common video extensions
+    extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
+    base_name = filename.lower()
+    for ext in extensions:
+        if base_name.endswith(ext):
+            return base_name[:-len(ext)]
+    return base_name
+
+def find_matching_event_by_filename(db_events: List[Event], target_filename: str) -> Optional[Event]:
+    """
+    Find an event that matches the target filename, accounting for extension differences.
+    """
+    normalized_target = normalize_filename(target_filename)
+    
+    for event in db_events:
+        normalized_event = normalize_filename(event.filename)
+        if normalized_event == normalized_target:
+            return event
+    
+    return None
+
 @router.get("/", response_model=EventList)
 async def list_events(
     camera_id: Optional[int] = Query(None, description="Filter by camera ID"),
@@ -29,13 +56,15 @@ async def list_events(
     offset: int = Query(0, ge=0, description="Number of events to skip"),
     sort_by: str = Query("triggered_at", description="Sort field"),
     sort_order: str = Query("desc", description="Sort order (asc/desc)"),
+    show_orphaned: bool = Query(False, description="Show events that are not on camera and not downloaded locally"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("view_events"))
 ) -> Any:
     """List events with filtering and pagination, excluding deleted events"""
     
-    # Build query
-    query = select(Event).join(Camera).where(Event.is_deleted == False)
+    # Build query with camera information and tags
+    query = select(Event, Camera.name.label('camera_name')).join(Camera).where(Event.is_deleted == False)
+    query = query.options(selectinload(Event.tags))
     
     # Apply filters
     if camera_id:
@@ -49,6 +78,11 @@ async def list_events(
     
     if end_date:
         query = query.where(Event.triggered_at <= end_date)
+    
+    # Filter out orphaned events (not on camera and not downloaded locally) unless explicitly requested
+    if not show_orphaned:
+        # Only show events that are not marked as orphaned
+        query = query.where(Event.is_orphaned == False)
     
     # Apply sorting
     if sort_by == "triggered_at":
@@ -67,7 +101,14 @@ async def list_events(
     
     # Execute query
     result = await db.execute(query)
-    events = result.scalars().all()
+    events_with_camera = result.all()
+    
+    # Process results to include camera names
+    events = []
+    for event_row in events_with_camera:
+        event = event_row[0]  # Event object
+        event.camera_name = event_row[1]  # Camera name
+        events.append(event)
     
     # Get total count
     count_query = select(Event)
@@ -79,6 +120,64 @@ async def list_events(
         count_query = count_query.where(Event.triggered_at >= start_date)
     if end_date:
         count_query = count_query.where(Event.triggered_at <= end_date)
+    
+    # Apply same orphaned filter to count query
+    if not show_orphaned:
+        count_query = count_query.where(Event.is_orphaned == False)
+    
+    count_result = await db.execute(count_query)
+    total_count = len(count_result.scalars().all())
+    
+    return EventList(
+        events=[EventResponse.from_orm(event) for event in events],
+        total=total_count,
+        limit=limit,
+        offset=offset
+    )
+
+@router.get("/orphaned", response_model=EventList)
+async def list_orphaned_events(
+    camera_id: Optional[int] = Query(None, description="Filter by camera ID"),
+    limit: int = Query(50, le=100, description="Number of events to return"),
+    offset: int = Query(0, ge=0, description="Number of events to skip"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("view_events"))
+) -> Any:
+    """List orphaned events (not on camera and not downloaded locally)"""
+    
+    # Build query for orphaned events with camera information and tags
+    query = select(Event, Camera.name.label('camera_name')).join(Camera).where(Event.is_deleted == False)
+    query = query.options(selectinload(Event.tags))
+    
+    # Apply camera filter
+    if camera_id:
+        query = query.where(Event.camera_id == camera_id)
+    
+    # Filter for orphaned events (marked as orphaned)
+    query = query.where(Event.is_orphaned == True)
+    
+    # Apply sorting (most recent first)
+    query = query.order_by(desc(Event.triggered_at))
+    
+    # Apply pagination
+    query = query.offset(offset).limit(limit)
+    
+    # Execute query
+    result = await db.execute(query)
+    events_with_camera = result.all()
+    
+    # Process results to include camera names
+    events = []
+    for event_row in events_with_camera:
+        event = event_row[0]  # Event object
+        event.camera_name = event_row[1]  # Camera name
+        events.append(event)
+    
+    # Get total count
+    count_query = select(Event).where(Event.is_deleted == False)
+    if camera_id:
+        count_query = count_query.where(Event.camera_id == camera_id)
+    count_query = count_query.where(Event.is_orphaned == True)
     
     count_result = await db.execute(count_query)
     total_count = len(count_result.scalars().all())
@@ -130,10 +229,15 @@ async def download_event(
     if event.file_path and event.is_downloaded:
         # Return local file
         if os.path.exists(event.file_path):
+            # Construct proper filename with extension
+            download_filename = event.filename
+            if event.video_extension and not download_filename.endswith(event.video_extension):
+                download_filename += event.video_extension
+            
             return StreamingResponse(
                 open(event.file_path, "rb"),
                 media_type="application/octet-stream",
-                headers={"Content-Disposition": f"attachment; filename={event.filename}"}
+                headers={"Content-Disposition": f"attachment; filename={download_filename}"}
             )
     
     # Download from camera if not available locally
@@ -175,10 +279,15 @@ async def download_event(
             await db.commit()
             
             # Return file
+            # Construct proper filename with extension
+            download_filename = event.filename
+            if event.video_extension and not download_filename.endswith(event.video_extension):
+                download_filename += event.video_extension
+            
             return StreamingResponse(
                 io.BytesIO(file_data),
                 media_type="application/octet-stream",
-                headers={"Content-Disposition": f"attachment; filename={event.filename}"}
+                headers={"Content-Disposition": f"attachment; filename={download_filename}"}
             )
             
     except Exception as e:
@@ -317,33 +426,57 @@ async def sync_events(
                     result = await db.execute(select(Event).where(Event.camera_id == camera.id))
                     existing_events = {event.filename: event for event in result.scalars().all()}
                     
+                    # Get all events to check for duplicates across cameras using normalized filenames
+                    all_events_result = await db.execute(select(Event))
+                    all_existing_events = list(all_events_result.scalars().all())
+                    
                     # Process new events
                     new_events = []
                     for camera_event in camera_events:
+                        # Check if event exists in this camera's events (exact match)
                         if camera_event.fileName not in existing_events:
-                            # Parse triggeredAt string to datetime
-                            try:
-                                triggered_at = datetime.fromisoformat(camera_event.triggeredAt)
-                            except ValueError:
-                                # Handle different date formats if needed
-                                logger.warning("Invalid date format", triggered_at=camera_event.triggeredAt, camera_id=camera.id)
-                                continue
+                            # Check if event exists in any camera using normalized filename comparison
+                            matching_event = find_matching_event_by_filename(all_existing_events, camera_event.fileName)
                             
-                            # Create new event record
-                            event = Event(
-                                camera_id=camera.id,
-                                filename=camera_event.fileName,
-                                event_name=camera_event.eventName,
-                                triggered_at=triggered_at,
-                                video_extension=camera_event.vidExt,
-                                thumbnail_extension=camera_event.thmbExt,
-                                playback_time=camera_event.playbackTime,
-                                event_metadata={
-                                    "age": camera_event.age,
-                                    "dir": camera_event.dir
-                                }
-                            )
-                            new_events.append(event)
+                            if not matching_event:
+                                # Parse triggeredAt string to datetime
+                                try:
+                                    triggered_at = datetime.fromisoformat(camera_event.triggeredAt)
+                                except ValueError:
+                                    # Handle different date formats if needed
+                                    logger.warning("Invalid date format", triggered_at=camera_event.triggeredAt, camera_id=camera.id)
+                                    continue
+                                
+                                # Create new event record
+                                event = Event(
+                                    camera_id=camera.id,
+                                    filename=camera_event.fileName,
+                                    event_name=camera_event.eventName,
+                                    triggered_at=triggered_at,
+                                    video_extension=camera_event.vidExt,
+                                    thumbnail_extension=camera_event.thmbExt,
+                                    playback_time=camera_event.playbackTime,
+                                    event_metadata={
+                                        "age": camera_event.age,
+                                        "dir": camera_event.dir
+                                    }
+                                )
+                                new_events.append(event)
+                                logger.info("Created new event from camera", filename=camera_event.fileName, camera_id=camera.id)
+                            else:
+                                # Event exists in another camera, update the existing record if needed
+                                logger.info("Event already exists, skipping duplicate", 
+                                          filename=camera_event.fileName, existing_camera_id=matching_event.camera_id, new_camera_id=camera.id)
+                                
+                                # Update the existing event with camera information if it's missing
+                                if not matching_event.event_name and camera_event.eventName:
+                                    matching_event.event_name = camera_event.eventName
+                                if not matching_event.video_extension and camera_event.vidExt:
+                                    matching_event.video_extension = camera_event.vidExt
+                                if not matching_event.thumbnail_extension and camera_event.thmbExt:
+                                    matching_event.thumbnail_extension = camera_event.thmbExt
+                                if not matching_event.playback_time and camera_event.playbackTime:
+                                    matching_event.playback_time = camera_event.playbackTime
                     
                     # Add new events to database
                     if new_events:
@@ -359,7 +492,7 @@ async def sync_events(
         await db.commit()
         logger.info("Camera sync section complete, entering FTP sync section")
 
-        # 2. Sync from FTP directory
+        # 2. Sync from FTP directory - now using filename as unique key
         ftp_dir = os.path.abspath(os.path.join(os.getcwd(), "ftpdata"))
         ftp_files_processed = 0
         ftp_files_updated = 0
@@ -376,18 +509,28 @@ async def sync_events(
                         continue
                     file_path = os.path.join(ftp_dir, fname)
                     logger.info("FTP sync: found file", filename=fname, file_path=file_path)
-                    # Check if event already exists
-                    result = await db.execute(select(Event).where(Event.filename == fname))
-                    event = result.scalar_one_or_none()
-                    if event:
-                        # Update file_path and is_downloaded if not already set
-                        event.file_path = file_path
-                        event.is_downloaded = True
+                    
+                    # Get all events to check for duplicates using normalized filenames
+                    all_events_result = await db.execute(select(Event))
+                    all_existing_events = list(all_events_result.scalars().all())
+                    
+                    # Check if event already exists by normalized filename
+                    matching_event = find_matching_event_by_filename(all_existing_events, fname)
+                    
+                    if matching_event:
+                        # Update existing event with FTP file information
+                        matching_event.file_path = file_path
+                        matching_event.is_downloaded = True
+                        # Update file size if available
+                        try:
+                            matching_event.file_size = os.path.getsize(file_path)
+                        except OSError:
+                            pass
                         await db.commit()
-                        logger.info("FTP sync: updated event", event_id=event.id, filename=fname)
+                        logger.info("FTP sync: updated existing event", event_id=matching_event.id, filename=fname, normalized=normalize_filename(fname))
                         ftp_files_updated += 1
                     else:
-                        # Create new event
+                        # Create new event only if it doesn't exist anywhere
                         event = Event(
                             filename=fname,
                             file_path=file_path,
@@ -585,9 +728,13 @@ async def play_event(
             detail="Event not found"
         )
     if event.file_path and os.path.exists(event.file_path):
+        # Mark as downloaded and played
         if not event.is_downloaded:
             event.is_downloaded = True
-            await db.commit()
+        if not event.is_played:
+            event.is_played = True
+        await db.commit()
+        
         # Guess content type based on extension
         import mimetypes
         mime_type, _ = mimetypes.guess_type(event.filename)
@@ -629,9 +776,21 @@ async def get_event_sync_status(
     if os.path.exists(ftp_dir):
         ftp_file_path = os.path.join(ftp_dir, event.filename)
         in_ftp = os.path.exists(ftp_file_path)
+    
+    # Update event status
     event.is_downloaded = on_server
+    # Mark as orphaned if not on camera and not downloaded
+    event.is_orphaned = not on_camera and not on_server
     await db.commit()
-    return {"on_server": on_server, "on_camera": on_camera, "in_ftp": in_ftp}
+    
+    # Return clear status information
+    return {
+        "on_server": on_server,
+        "on_camera": on_camera, 
+        "in_ftp": in_ftp,
+        "is_downloaded": on_server,
+        "is_orphaned": not on_camera and not on_server
+    }
 
 @router.get("/{event_id}/refresh")
 async def refresh_event_sync_status(
