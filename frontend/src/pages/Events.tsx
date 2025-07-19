@@ -105,13 +105,22 @@ export default function Events() {
   const [editingEventTags, setEditingEventTags] = useState<number | null>(null);
   const [showCreateTag, setShowCreateTag] = useState(false);
 
+  const [refreshKey, setRefreshKey] = useState(0);
+  
   const { data: events, loading, error } = useApi(
     showOrphaned ? fetchOrphanedEvents : fetchEvents,
-    [showOrphaned], // Re-fetch when showOrphaned changes
+    [showOrphaned, refreshKey], // Re-fetch when showOrphaned or refreshKey changes
     {
-      onError: (err) => dispatch({ type: 'ADD_ERROR', payload: err.message })
+      onError: (err) => {
+        console.error('Events fetch error:', err);
+        dispatch({ type: 'ADD_ERROR', payload: err.message });
+      }
     }
   );
+
+  const refreshEvents = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   // Load tags and usage stats
   useEffect(() => {
@@ -191,7 +200,7 @@ export default function Events() {
         newSet.delete(eventId);
         return newSet;
       });
-      window.location.reload();
+      refreshEvents();
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { message: 'Event deleted from local storage', type: 'success' } 
@@ -220,7 +229,7 @@ export default function Events() {
       
       // Clear selected events
       setSelectedEvents(new Set());
-      window.location.reload();
+      refreshEvents();
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { message: `${selectedEvents.size} events deleted from local storage`, type: 'success' } 
@@ -272,7 +281,7 @@ export default function Events() {
     try {
       await deleteEventFromCamera(eventId);
       await loadSyncStatus(eventId);
-      window.location.reload();
+      refreshEvents();
       dispatch({ 
         type: 'ADD_NOTIFICATION', 
         payload: { message: 'Event deleted from camera', type: 'success' } 
@@ -312,11 +321,15 @@ export default function Events() {
         type: 'ADD_NOTIFICATION',
         payload: { message: 'Event triggered successfully', type: 'success' }
       });
-      window.location.reload();
+      // Wait a moment for the event to be created, then refresh events
+      setTimeout(() => {
+        refreshEvents();
+      }, 2000); // Wait 2 seconds for the event to be created
     } catch (error) {
+      console.error('Trigger event error:', error);
       dispatch({
         type: 'ADD_ERROR',
-        payload: 'Failed to trigger event'
+        payload: `Failed to trigger event: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     } finally {
       setTriggering(false);
@@ -328,11 +341,9 @@ export default function Events() {
     try {
       await syncEvents();
       // Re-fetch events after sync
-      if (typeof window !== 'undefined') {
-        // If using SWR or react-query, trigger revalidation here instead
-        window.location.reload(); // fallback if not using SWR/react-query
-      }
+      refreshEvents();
     } catch (err: any) {
+      console.error('Refresh error:', err);
       dispatch({ type: 'ADD_ERROR', payload: err.message || 'Failed to sync events' });
     } finally {
       setRefreshing(false);
@@ -354,8 +365,8 @@ export default function Events() {
         payload: { message: 'Tags assigned successfully', type: 'success' } 
       });
       
-      // Reload page to show updated tags
-      window.location.reload();
+      // Refresh events to show updated tags
+      refreshEvents();
     } catch (error) {
       console.error('Error assigning tags:', error);
       console.error('Error details:', {

@@ -37,4 +37,24 @@ export function getUser() {
   } catch {
     return null;
   }
+}
+
+export function isTokenExpired() {
+  const token = getToken();
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const exp = payload.exp * 1000; // Convert to milliseconds
+    return Date.now() >= exp;
+  } catch {
+    return true;
+  }
+}
+
+export function clearExpiredToken() {
+  if (isTokenExpired()) {
+    localStorage.removeItem("token");
+    return true;
+  }
+  return false;
 } 
