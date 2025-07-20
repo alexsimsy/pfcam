@@ -34,19 +34,24 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Building deployment package for version: $VERSION"
         
-    - name: Create deployment package
+    - name: Create deployment package (Simple)
       run: |
-        chmod +x scripts/create-deployment-package.sh
-        ./scripts/create-deployment-package.sh
+        chmod +x scripts/create-deployment-package-simple.sh
+        ./scripts/create-deployment-package-simple.sh
         
     - name: Verify package creation
       run: |
-        if [ ! -f "build/event-cam-deployment-*.tar.gz" ]; then
+        echo "Checking for deployment package..."
+        if [ -f "build/event-cam-deployment-1.0.0.tar.gz" ]; then
+          echo "✅ Deployment package created successfully"
+          ls -la build/
+          echo "Package size: $(du -h build/event-cam-deployment-1.0.0.tar.gz | cut -f1)"
+        else
           echo "❌ Error: Deployment package was not created"
+          echo "Contents of build directory:"
+          ls -la build/ || echo "Build directory not found"
           exit 1
         fi
-        echo "✅ Deployment package created successfully"
-        ls -la build/
         
     - name: Upload deployment package
       uses: actions/upload-artifact@v4

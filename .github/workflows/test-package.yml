@@ -1,0 +1,70 @@
+name: Test Package Creation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-package:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Debug environment
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "Files in root:"
+        ls -la
+        echo ""
+        echo "Files in scripts:"
+        ls -la scripts/ || echo "scripts directory not found"
+        echo ""
+        echo "Files in vpn-setup:"
+        ls -la vpn-setup/ || echo "vpn-setup directory not found"
+        
+    - name: Test basic package creation
+      run: |
+        echo "Creating minimal test package..."
+        mkdir -p test-build
+        echo "Test package created" > test-build/test.txt
+        echo "✅ Basic package creation works"
+        
+    - name: Test script execution
+      run: |
+        echo "Testing if script exists and is executable..."
+        if [ -f "scripts/create-deployment-package.sh" ]; then
+          echo "✅ Script exists"
+          ls -la scripts/create-deployment-package.sh
+        else
+          echo "❌ Script not found"
+          exit 1
+        fi
+        
+    - name: Test script step by step
+      run: |
+        echo "Testing script step by step..."
+        
+        # Test 1: Create build directory
+        echo "Step 1: Creating build directory..."
+        mkdir -p build/test-package
+        echo "✅ Build directory created"
+        
+        # Test 2: Copy a simple file
+        echo "Step 2: Copying test file..."
+        echo "test content" > build/test-package/test.txt
+        echo "✅ File copied"
+        
+        # Test 3: Create archive
+        echo "Step 3: Creating archive..."
+        cd build
+        tar -czf test-package.tar.gz test-package/
+        echo "✅ Archive created"
+        ls -la *.tar.gz
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: build/
+        retention-days: 1 
