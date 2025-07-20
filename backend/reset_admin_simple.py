@@ -27,7 +27,7 @@ async def reset_admin():
             if admin_user:
                 print(f"Found existing admin user: {admin_user.email}")
                 # Update email and password
-                admin_user.email = "admin@pfcam.com"
+                admin_user.email = "admin@s-imsy.com"
                 admin_user.hashed_password = get_password_hash("admin123")
                 await db.commit()
                 print("✅ Admin credentials updated successfully!")
@@ -35,7 +35,7 @@ async def reset_admin():
                 print("No admin user found, creating new one...")
                 # Create new admin user
                 admin_user = User(
-                    email="admin@pfcam.com",
+                    email="admin@s-imsy.com",
                     hashed_password=get_password_hash("admin123"),
                     is_active=True,
                     is_superuser=True
@@ -44,7 +44,7 @@ async def reset_admin():
                 await db.commit()
                 print("✅ Admin user created successfully!")
             
-            print(f"Email: admin@pfcam.com")
+            print(f"Email: admin@s-imsy.com")
             print(f"Password: admin123")
             break
             

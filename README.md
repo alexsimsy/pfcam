@@ -59,7 +59,7 @@ VITE_WS_URL=ws://backend:8000/ws
 5. Point your domain to the server's IP.
 
 **Default admin login:**  
-- Email: `admin@pfcam.com`  
+- Email: `admin@s-imsy.com`  
 - Password: `admin123`  
 (You should change this after first login.)
 

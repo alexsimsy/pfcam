@@ -44,7 +44,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     // Extract user ID from JWT payload
     // The JWT payload might have 'id' field or we need to get it from the database
     // For now, let's use a default user ID of 1 for admin user
-    const userId = user.id || (user.sub === 'admin@pfcam.com' ? 1 : null);
+    const userId = user.id || (user.sub === 'admin@s-imsy.com' ? 1 : null);
     
     if (!userId) {
       console.warn('No user ID available for WebSocket connection');

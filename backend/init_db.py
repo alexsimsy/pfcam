@@ -43,7 +43,7 @@ async def create_admin_user():
         async with async_session() as session:
             # Check if admin user already exists
             result = await session.execute(
-                text("SELECT id FROM users WHERE email = 'admin@pfcam.com'")
+                text("SELECT id FROM users WHERE email = 'admin@s-imsy.com'")
             )
             if result.scalar_one_or_none():
                 logger.info("Admin user already exists")
@@ -51,7 +51,7 @@ async def create_admin_user():
             
             # Create admin user
             admin_user = User(
-                email="admin@pfcam.com",
+                email="admin@s-imsy.com",
                 username="admin",
                 hashed_password=get_password_hash("admin123"),
                 full_name="System Administrator",
@@ -87,7 +87,7 @@ async def main():
         print("DATABASE INITIALIZATION COMPLETE")
         print("="*50)
         print("Admin user created:")
-        print("  Email: admin@pfcam.com")
+        print("  Email: admin@s-imsy.com")
         print("  Username: admin")
         print("  Password: admin123")
         print("\nPlease change the admin password after first login!")

@@ -77,6 +77,12 @@ if [ -f "vpn-setup/choose-vpn.sh" ]; then
     echo "✅ Copied VPN choice script"
 fi
 
+# Copy admin setup script
+if [ -f "scripts/setup-admin.sh" ]; then
+    cp scripts/setup-admin.sh "${PACKAGE_DIR}/"
+    echo "✅ Copied admin setup script"
+fi
+
 # Create a simple README for the package
 cat > "${PACKAGE_DIR}/PACKAGE_README.md" << EOF
 # Event Cam Deployment Package v${VERSION}
@@ -109,6 +115,7 @@ This package includes both VPN solutions:
 2. Run: chmod +x hetzner-deploy.sh
 3. Run: ./hetzner-deploy.sh
 4. Choose your VPN: cd vpn-setup && ./choose-vpn.sh
+5. Setup admin user: ./setup-admin.sh (optional - custom credentials)
 
 Created: $(date)
 EOF

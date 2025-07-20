@@ -17,7 +17,7 @@
 
 ### First Login
 - **Default Admin Credentials:**
-  - Email: `admin@pfcam.com`
+  - Email: `admin@s-imsy.com`
   - Password: `admin123`
 - **Important:** Change the default password after your first login
 
@@ -310,7 +310,7 @@ Manage system-wide configuration:
 - **Health Check**: `http://localhost:8000/health`
 
 ### Default Settings
-- **Admin Email**: `admin@pfcam.com`
+- **Admin Email**: `admin@s-imsy.com`
 - **Default Password**: `admin123`
 - **Session Timeout**: 30 minutes
 - **Auto-refresh**: 30 seconds (dashboard)
