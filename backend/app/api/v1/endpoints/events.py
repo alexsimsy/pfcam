@@ -16,6 +16,7 @@ from app.models.event import Event
 from app.models.camera import Camera
 from app.services.camera_client import CameraClient, CameraEvent
 from app.schemas.events import EventResponse, EventList, EventDownload
+from app.services.notification_service import notification_service
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -484,6 +485,19 @@ async def sync_events(
                         total_new_events += len(new_events)
                         logger.info("Events synced for camera", camera_id=camera.id, new_count=len(new_events))
                         
+                        # Send notifications for new events
+                        try:
+                            # Get all users for notifications
+                            users_result = await db.execute(select(User).where(User.is_active == True))
+                            users = users_result.scalars().all()
+                            
+                            # Send notifications for each new event
+                            for event in new_events:
+                                await notification_service.send_event_notification(event, camera, users)
+                                
+                        except Exception as e:
+                            logger.error("Failed to send event notifications", camera_id=camera.id, error=str(e))
+                        
             except Exception as e:
                 logger.error("Exception in camera sync loop", camera_id=camera.id, error=str(e))
                 continue
@@ -543,6 +557,23 @@ async def sync_events(
                         await db.commit()
                         logger.info("FTP sync: created new event", event_id=event.id, filename=fname)
                         ftp_files_created += 1
+                        
+                        # Send notifications for FTP events
+                        try:
+                            # Get camera for the event (default camera ID 1)
+                            camera_result = await db.execute(select(Camera).where(Camera.id == event.camera_id))
+                            camera = camera_result.scalar_one_or_none()
+                            
+                            if camera:
+                                # Get all users for notifications
+                                users_result = await db.execute(select(User).where(User.is_active == True))
+                                users = users_result.scalars().all()
+                                
+                                # Send notification for the new FTP event
+                                await notification_service.send_event_notification(event, camera, users)
+                                
+                        except Exception as e:
+                            logger.error("Failed to send FTP event notifications", event_id=event.id, error=str(e))
                     ftp_files_processed += 1
             except Exception as e:
                 logger.error("FTP sync: exception in FTP sync loop", error=str(e), exc_info=True)

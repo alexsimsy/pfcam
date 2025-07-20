@@ -4,6 +4,9 @@ hlsAlwaysRemux: true
 hlsSegmentCount: 3
 hlsSegmentDuration: 1s
 paths:
+  2ndCamera:
+    source: rtsp://192.168.86.22:8554/
+    sourceOnDemand: true
   NewTest:
     source: rtsp://192.168.86.199:8554/
     sourceOnDemand: true

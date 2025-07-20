@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Union, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, WebSocket
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -152,4 +152,64 @@ def require_role(role: str):
                 detail=f"Role '{role}' required"
             )
         return current_user
-    return role_checker 
+    return role_checker
+
+async def get_current_user_ws(websocket: WebSocket, user_id: int) -> Optional[User]:
+    """Get current user for WebSocket connections"""
+    try:
+        # Get token from query parameters or headers
+        token = None
+        
+        # Try to get token from query parameters first
+        if "token" in websocket.query_params:
+            token = websocket.query_params["token"]
+        # Try to get token from headers
+        elif "authorization" in websocket.headers:
+            auth_header = websocket.headers["authorization"]
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]  # Remove "Bearer " prefix
+        
+        if not token:
+            logger.warning("No token provided for WebSocket connection", user_id=user_id)
+            return None
+        
+        # Verify token
+        payload = verify_token(token)
+        if payload is None:
+            logger.warning("Invalid token for WebSocket connection", user_id=user_id)
+            return None
+        
+        email: str = payload.get("sub")
+        if email is None:
+            logger.warning("No email in token payload", user_id=user_id)
+            return None
+        
+        # Check if this is a temporary token
+        if payload.get("temp"):
+            logger.warning("Temporary token used for WebSocket", user_id=user_id)
+            return None
+        
+        # Get database session
+        async for db in get_db():
+            # Get user from database
+            result = await db.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+            
+            if user is None:
+                logger.warning("User not found for WebSocket", user_id=user_id, email=email)
+                return None
+            
+            if not user.is_active:
+                logger.warning("Inactive user for WebSocket", user_id=user_id)
+                return None
+            
+            # Verify user ID matches
+            if user.id != user_id:
+                logger.warning("User ID mismatch for WebSocket", token_user_id=user.id, requested_user_id=user_id)
+                return None
+            
+            return user
+            
+    except Exception as e:
+        logger.error("WebSocket authentication error", user_id=user_id, error=str(e))
+        return None 

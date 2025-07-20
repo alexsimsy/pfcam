@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: pfcam
       POSTGRES_USER: pfcam
       POSTGRES_PASSWORD: pfcam
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,8 +17,6 @@ services:
 
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://pfcam:pfcam@postgres:5432/pfcam
       - SECRET_KEY=your-secret-key-here-change-in-production
@@ -45,8 +41,6 @@ services:
 
   frontend:
     build: ./frontend
-    ports:
-      - "3000:3000"
     environment:
       - VITE_WS_URL=ws://backend:8000/ws
     depends_on:
@@ -55,8 +49,6 @@ services:
 
   redis:
     image: redis:6-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -76,9 +68,6 @@ services:
     image: bluenviron/mediamtx:latest
     container_name: mediamtx
     restart: unless-stopped
-    ports:
-      - "8554:8554"   # RTSP
-      - "8888:8888"   # HLS
     volumes:
       - ./mediamtx.yml:/mediamtx.yml
     network_mode: bridge
@@ -88,7 +77,7 @@ services:
     container_name: pfcam-ftp-1
     ports:
       - "21:21"
-      - "30000-30009:30000-30009"  # Passive port range
+      - "30000-30009:30000-30009"  # Passive port range for camera file uploads
     environment:
       - PUBLICHOST=localhost
       - FTP_USER_NAME=ftpuser

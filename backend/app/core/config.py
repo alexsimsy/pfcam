@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
     
-    # CORS
+    # CORS - More restrictive in production
     ALLOWED_HOSTS: List[str] = ["*"]
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"]
     
@@ -85,6 +85,13 @@ settings = Settings()
 if os.getenv("ENVIRONMENT") == "production":
     settings.DEBUG = False
     settings.LOG_LEVEL = "WARNING"
+    # Restrict CORS in production
+    settings.ALLOWED_ORIGINS = [
+        "https://your-domain.com",  # Replace with your actual domain
+        "https://www.your-domain.com"
+    ]
+    # Disable OpenAPI docs in production
+    settings.OPENAPI_URL = None
 elif os.getenv("ENVIRONMENT") == "development":
     settings.DEBUG = True
     settings.LOG_LEVEL = "DEBUG" 

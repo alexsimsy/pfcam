@@ -29,15 +29,14 @@ services:
         /usr/local/bin/ovpn_run
       "
 
-  # Database
+  # Database - INTERNAL ONLY
   postgres:
     image: postgres:15
     environment:
       POSTGRES_DB: pfcam
       POSTGRES_USER: pfcam
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pfcam}
-    ports:
-      - "5432:5432"
+    # REMOVED: ports: - "5432:5432" - Database should not be exposed
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -49,11 +48,10 @@ services:
       - pfcam-network
     restart: unless-stopped
 
-  # Backend API
+  # Backend API - INTERNAL ONLY
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    # REMOVED: ports: - "8000:8000" - Backend should only be accessed via Nginx
     environment:
       - DATABASE_URL=postgresql://pfcam:${POSTGRES_PASSWORD:-pfcam}@postgres:5432/pfcam
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-here-change-in-production}
@@ -79,11 +77,10 @@ services:
       - pfcam-network
     restart: unless-stopped
 
-  # Frontend
+  # Frontend - INTERNAL ONLY
   frontend:
     build: ./frontend
-    ports:
-      - "3000:3000"
+    # REMOVED: ports: - "3000:3000" - Frontend should only be accessed via Nginx
     environment:
       - VITE_WS_URL=ws://backend:8000/ws
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
@@ -93,18 +90,17 @@ services:
       - pfcam-network
     restart: unless-stopped
 
-  # Cache
+  # Cache - INTERNAL ONLY
   redis:
     image: redis:6-alpine
-    ports:
-      - "6379:6379"
+    # REMOVED: ports: - "6379:6379" - Redis should not be exposed
     volumes:
       - redis_data:/data
     networks:
       - pfcam-network
     restart: unless-stopped
 
-  # Reverse Proxy
+  # Reverse Proxy - EXTERNAL ACCESS
   nginx:
     image: nginx:alpine
     ports:
@@ -121,26 +117,25 @@ services:
       - pfcam-network
     restart: unless-stopped
 
-  # Video Streaming Server
+  # Video Streaming Server - VPN ACCESS ONLY
   mediamtx:
     image: bluenviron/mediamtx:latest
     container_name: mediamtx
-    ports:
-      - "8554:8554"   # RTSP
-      - "8888:8888"   # HLS
+    # REMOVED: ports: - "8554:8554" - Should only be accessible via VPN
+    # REMOVED: ports: - "8888:8888" - Should only be accessible via VPN
     volumes:
       - ./mediamtx.yml:/mediamtx.yml
     networks:
       - pfcam-network
     restart: unless-stopped
 
-  # FTP Server
+  # FTP Server - CAMERA ACCESS REQUIRED
   ftp:
     image: stilliard/pure-ftpd:latest
     container_name: pfcam-ftp-1
     ports:
       - "21:21"
-      - "30000-30009:30000-30009"  # Passive port range
+      - "30000-30009:30000-30009"  # Passive port range for camera file uploads
     environment:
       - PUBLICHOST=${FTP_PUBLIC_HOST:-localhost}
       - FTP_USER_NAME=${FTP_USER_NAME:-ftpuser}
