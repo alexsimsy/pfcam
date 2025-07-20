@@ -15,6 +15,11 @@ on:
         required: false
         default: 'false'
 
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
 jobs:
   create-deployment-package:
     runs-on: ubuntu-latest
@@ -32,6 +37,15 @@ jobs:
       run: |
         chmod +x scripts/create-deployment-package.sh
         ./scripts/create-deployment-package.sh
+        
+    - name: Verify package creation
+      run: |
+        if [ ! -f "build/event-cam-deployment-*.tar.gz" ]; then
+          echo "❌ Error: Deployment package was not created"
+          exit 1
+        fi
+        echo "✅ Deployment package created successfully"
+        ls -la build/
         
     - name: Create tag if requested
       if: github.event.inputs.create_tag == 'true'
@@ -61,6 +75,8 @@ jobs:
         body_path: build/RELEASE_NOTES.md
         draft: false
         prerelease: false
+        generate_release_notes: true
+        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
