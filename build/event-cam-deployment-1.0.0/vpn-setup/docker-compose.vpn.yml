@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  openvpn:
+    image: kylemanna/openvpn:latest
+    container_name: pfcam-openvpn
+    ports:
+      - "1194:1194/udp"
+    volumes:
+      - ./vpn-config:/etc/openvpn
+      - ./vpn-data:/var/lib/openvpn
+      - ./vpn-scripts:/opt/scripts
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    networks:
+      - vpn-network
+    environment:
+      - OVPN_SERVER=10.8.0.0/24
+      - OVPN_PROTO=udp
+      - OVPN_PORT=1194
+    command: >
+      bash -c "
+        if [ ! -f /etc/openvpn/openvpn.conf ]; then
+          echo 'Initializing OpenVPN configuration...'
+          /opt/scripts/init-vpn.sh
+        fi
+        /usr/local/bin/ovpn_run
+      "
+
+  vpn-monitor:
+    image: alpine:latest
+    container_name: pfcam-vpn-monitor
+    volumes:
+      - ./vpn-logs:/var/log/openvpn
+      - ./vpn-monitor:/opt/monitor
+    command: >
+      sh -c "
+        apk add --no-cache curl jq &&
+        while true; do
+          echo 'Checking VPN status...' &&
+          if [ -f /var/log/openvpn/openvpn-status.log ]; then
+            echo 'VPN Status:' &&
+            cat /var/log/openvpn/openvpn-status.log
+          fi &&
+          sleep 30
+        done
+      "
+    depends_on:
+      - openvpn
+    networks:
+      - vpn-network
+    restart: unless-stopped
+
+networks:
+  vpn-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+
+volumes:
+  vpn-config:
+  vpn-data:
+  vpn-logs:
+  vpn-monitor: 
