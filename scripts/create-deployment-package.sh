@@ -27,47 +27,47 @@ mkdir -p "${PACKAGE_DIR}"
 
 # Copy core deployment scripts
 echo -e "${YELLOW}📦 Copying deployment scripts...${NC}"
-cp scripts/hetzner-deploy.sh "${PACKAGE_DIR}/"
-cp scripts/client-setup.sh "${PACKAGE_DIR}/"
-cp vpn-setup/install-server.sh "${PACKAGE_DIR}/"
+cp scripts/hetzner-deploy.sh "${PACKAGE_DIR}/" || echo "Warning: scripts/hetzner-deploy.sh not found"
+cp scripts/client-setup.sh "${PACKAGE_DIR}/" || echo "Warning: scripts/client-setup.sh not found"
+cp vpn-setup/install-server.sh "${PACKAGE_DIR}/" || echo "Warning: vpn-setup/install-server.sh not found"
 
 # Copy VPN setup files
 echo -e "${YELLOW}🔐 Copying VPN setup files...${NC}"
 mkdir -p "${PACKAGE_DIR}/vpn-setup"
-cp vpn-setup/*.sh "${PACKAGE_DIR}/vpn-setup/"
-cp vpn-setup/*.yml "${PACKAGE_DIR}/vpn-setup/"
-cp vpn-setup/env.production "${PACKAGE_DIR}/vpn-setup/"
-cp vpn-setup/*.md "${PACKAGE_DIR}/vpn-setup/"
+cp vpn-setup/*.sh "${PACKAGE_DIR}/vpn-setup/" 2>/dev/null || echo "Warning: No .sh files in vpn-setup/"
+cp vpn-setup/*.yml "${PACKAGE_DIR}/vpn-setup/" 2>/dev/null || echo "Warning: No .yml files in vpn-setup/"
+cp vpn-setup/env.production "${PACKAGE_DIR}/vpn-setup/" 2>/dev/null || echo "Warning: vpn-setup/env.production not found"
+cp vpn-setup/*.md "${PACKAGE_DIR}/vpn-setup/" 2>/dev/null || echo "Warning: No .md files in vpn-setup/"
 
 # Copy configuration files
 echo -e "${YELLOW}⚙️ Copying configuration files...${NC}"
-cp docker-compose.production.yml "${PACKAGE_DIR}/"
-cp docker-compose.4gb-ram.yml "${PACKAGE_DIR}/"
-cp mediamtx.yml "${PACKAGE_DIR}/"
+cp docker-compose.production.yml "${PACKAGE_DIR}/" || echo "Warning: docker-compose.production.yml not found"
+cp docker-compose.4gb-ram.yml "${PACKAGE_DIR}/" || echo "Warning: docker-compose.4gb-ram.yml not found"
+cp mediamtx.yml "${PACKAGE_DIR}/" || echo "Warning: mediamtx.yml not found"
 
 # Copy nginx configuration
 mkdir -p "${PACKAGE_DIR}/nginx"
-cp nginx/nginx.conf "${PACKAGE_DIR}/nginx/"
-cp nginx/create-ssl-cert.sh "${PACKAGE_DIR}/nginx/"
+cp nginx/nginx.conf "${PACKAGE_DIR}/nginx/" || echo "Warning: nginx/nginx.conf not found"
+cp nginx/create-ssl-cert.sh "${PACKAGE_DIR}/nginx/" || echo "Warning: nginx/create-ssl-cert.sh not found"
 
 # Copy documentation
 echo -e "${YELLOW}📚 Copying documentation...${NC}"
-cp INSTALLATION_GUIDE.md "${PACKAGE_DIR}/"
-cp QUICKSTART.md "${PACKAGE_DIR}/"
-cp vpn-setup/DEPLOYMENT_GUIDE.md "${PACKAGE_DIR}/"
-cp deployment/README.md "${PACKAGE_DIR}/"
+cp INSTALLATION_GUIDE.md "${PACKAGE_DIR}/" || echo "Warning: INSTALLATION_GUIDE.md not found"
+cp QUICKSTART.md "${PACKAGE_DIR}/" || echo "Warning: QUICKSTART.md not found"
+cp vpn-setup/DEPLOYMENT_GUIDE.md "${PACKAGE_DIR}/" || echo "Warning: vpn-setup/DEPLOYMENT_GUIDE.md not found"
+cp deployment/README.md "${PACKAGE_DIR}/" || echo "Warning: deployment/README.md not found"
 
 # Copy utility scripts
 echo -e "${YELLOW}🔧 Copying utility scripts...${NC}"
-cp fix-secret-key.sh "${PACKAGE_DIR}/"
-cp update-ports.sh "${PACKAGE_DIR}/"
-cp setup-remote-access.sh "${PACKAGE_DIR}/"
+cp fix-secret-key.sh "${PACKAGE_DIR}/" || echo "Warning: fix-secret-key.sh not found"
+cp update-ports.sh "${PACKAGE_DIR}/" || echo "Warning: update-ports.sh not found"
+cp setup-remote-access.sh "${PACKAGE_DIR}/" || echo "Warning: setup-remote-access.sh not found"
 
 # Make scripts executable
 echo -e "${YELLOW}🔐 Making scripts executable...${NC}"
-chmod +x "${PACKAGE_DIR}"/*.sh
-chmod +x "${PACKAGE_DIR}/vpn-setup"/*.sh
-chmod +x "${PACKAGE_DIR}/nginx"/*.sh
+chmod +x "${PACKAGE_DIR}"/*.sh 2>/dev/null || echo "Warning: No .sh files in package root"
+chmod +x "${PACKAGE_DIR}/vpn-setup"/*.sh 2>/dev/null || echo "Warning: No .sh files in vpn-setup"
+chmod +x "${PACKAGE_DIR}/nginx"/*.sh 2>/dev/null || echo "Warning: No .sh files in nginx"
 
 # Create checksum file
 echo -e "${YELLOW}🔍 Creating checksums...${NC}"
