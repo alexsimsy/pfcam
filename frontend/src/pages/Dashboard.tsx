@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { fetchCameras, createCamera } from '../services/cameras';
+import { fetchCameras, createCamera, triggerEvent } from '../services/cameras';
 import { fetchCameraStreams, getStreamSnapshot } from '../services/streams';
 import { fetchDashboardStats } from '../services/dashboard';
 import type { Camera } from '../services/cameras';
@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [streams, setStreams] = useState<StreamList | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState<number | null>(null);
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
+  const [triggerLoading, setTriggerLoading] = useState<number | null>(null);
 
   const { data: cameras, loading, error } = useApi(
     fetchCameras,
@@ -108,6 +109,25 @@ export default function Dashboard() {
       });
     } finally {
       setSnapshotLoading(null);
+    }
+  };
+
+  const handleTriggerEvent = async (cameraId: number) => {
+    setTriggerLoading(cameraId);
+    
+    try {
+      await triggerEvent(cameraId, 10, 10, "Manual Trigger", "Manual Event", true, "none");
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: 'Event triggered successfully', type: 'success' } 
+      });
+    } catch (err: any) {
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: `Failed to trigger event: ${err.message}`, type: 'error' } 
+      });
+    } finally {
+      setTriggerLoading(null);
     }
   };
 
@@ -274,6 +294,18 @@ export default function Dashboard() {
                     <p className="text-sm text-simsy-text">
                       {cam.last_seen ? new Date(cam.last_seen).toLocaleString() : '-'}
                     </p>
+                    <div className="mt-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTriggerEvent(cam.id);
+                        }}
+                        disabled={triggerLoading === cam.id || !cam.is_online}
+                        className="bg-orange-500 text-white font-bold py-1 px-3 rounded text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {triggerLoading === cam.id ? 'Triggering...' : 'Trigger Event'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

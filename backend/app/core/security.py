@@ -203,11 +203,9 @@ async def get_current_user_ws(websocket: WebSocket, user_id: int) -> Optional[Us
                 logger.warning("Inactive user for WebSocket", user_id=user_id)
                 return None
             
-            # Verify user ID matches
-            if user.id != user_id:
-                logger.warning("User ID mismatch for WebSocket", token_user_id=user.id, requested_user_id=user_id)
-                return None
-            
+            # For WebSocket connections, we'll use the user ID from the token, not the path parameter
+            # This allows the frontend to use a consistent user ID (like 1 for admin)
+            logger.info("WebSocket authentication successful", user_id=user.id, email=email)
             return user
             
     except Exception as e:

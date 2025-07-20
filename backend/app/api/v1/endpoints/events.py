@@ -545,11 +545,27 @@ async def sync_events(
                         ftp_files_updated += 1
                     else:
                         # Create new event only if it doesn't exist anywhere
+                        # Try to determine which camera this file belongs to based on filename patterns
+                        # Look for camera name patterns in the filename
+                        camera_result = await db.execute(select(Camera))
+                        all_cameras = camera_result.scalars().all()
+                        
+                        # Try to match filename to camera name
+                        matched_camera = None
+                        for camera in all_cameras:
+                            if camera.name.lower() in fname.lower():
+                                matched_camera = camera
+                                break
+                        
+                        # If no match found, use the first camera or fallback to 1
+                        if not matched_camera and all_cameras:
+                            matched_camera = all_cameras[0]
+                        
                         event = Event(
                             filename=fname,
                             file_path=file_path,
                             is_downloaded=True,
-                            camera_id=1,  # Default camera ID
+                            camera_id=matched_camera.id if matched_camera else 1,  # Use matched camera or fallback to 1
                             event_name="Motion Event",
                             triggered_at=datetime.now()
                         )

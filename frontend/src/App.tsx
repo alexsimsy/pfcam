@@ -14,9 +14,11 @@ import { useAuth } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Notification from './components/Notification';
 import Admin from './pages/Admin';
-import { useWebSocket } from './hooks/useWebSocket';
 import { getUser } from './services/auth';
 import { useAppState } from './contexts/AppStateContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+import NotificationContainer from './components/NotificationContainer';
+import NotificationBell from './components/NotificationBell';
 
 const navLinks = [
   { name: 'Dashboard', path: '/' },
@@ -44,42 +46,12 @@ function LockIcon() {
 
 export default function App() {
   const { isAdmin } = useAuth();
-  const { dispatch } = useAppState();
-  
-  // Get current user for WebSocket connection
-  const user = getUser();
-  const userId = user?.sub ? parseInt(user.sub) : 0;
-
-  // WebSocket connection for real-time notifications
-  const { isConnected } = useWebSocket({
-    userId,
-    onMessage: (message) => {
-      // Show in-app notification for real-time messages
-      if (message.type !== 'connection_established') {
-        dispatch({
-          type: 'ADD_NOTIFICATION',
-          payload: {
-            message: `${message.title}: ${message.message}`,
-            type: message.priority === 'high' || message.priority === 'urgent' ? 'error' : 'success'
-          }
-        });
-      }
-    },
-    onConnect: () => {
-      console.log('WebSocket connected for notifications');
-    },
-    onDisconnect: () => {
-      console.log('WebSocket disconnected');
-    },
-    onError: (error) => {
-      console.error('WebSocket error:', error);
-    }
-  });
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-simsy-dark text-simsy-text font-sans">
-        <Notification />
+      <NotificationProvider>
+        <div className="min-h-screen bg-simsy-dark text-simsy-text font-sans">
+          <Notification />
         {/* Top Navigation Bar */}
         <nav className="w-full bg-simsy-blue px-10 py-4 flex items-center justify-between shadow-md">
           <div className="flex items-center gap-4">
@@ -103,6 +75,7 @@ export default function App() {
                 Admin
               </Link>
             )}
+            <NotificationBell />
             <UserMenu />
           </div>
         </nav>
@@ -121,6 +94,7 @@ export default function App() {
           </Routes>
         </main>
       </div>
+      </NotificationProvider>
     </ErrorBoundary>
   );
 }

@@ -5,7 +5,7 @@ import { useApi } from '../hooks/useApi';
 import { useAppState } from '../contexts/AppStateContext';
 import type { Event } from '../services/events';
 import type { Tag, TagUsage } from '../services/tags';
-import { triggerEvent } from '../services/cameras';
+
 import { getToken } from '../services/auth';
 
 // Status Icon Components
@@ -93,7 +93,6 @@ export default function Events() {
   const [playingEventUrl, setPlayingEventUrl] = useState<string | null>(null);
   const [playingEventName, setPlayingEventName] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
-  const [triggering, setTriggering] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{[key: number]: {on_server: boolean, on_camera: boolean, in_ftp?: boolean}}>({});
   const [refreshing, setRefreshing] = useState(false);
   const [showOrphaned, setShowOrphaned] = useState(false);
@@ -313,28 +312,7 @@ export default function Events() {
     }
   };
 
-  const handleTriggerEvent = async () => {
-    setTriggering(true);
-    try {
-      await triggerEvent(1, 10, 10, 'string', 'overlay');
-      dispatch({
-        type: 'ADD_NOTIFICATION',
-        payload: { message: 'Event triggered successfully', type: 'success' }
-      });
-      // Wait a moment for the event to be created, then refresh events
-      setTimeout(() => {
-        refreshEvents();
-      }, 2000); // Wait 2 seconds for the event to be created
-    } catch (error) {
-      console.error('Trigger event error:', error);
-      dispatch({
-        type: 'ADD_ERROR',
-        payload: `Failed to trigger event: ${error instanceof Error ? error.message : 'Unknown error'}`
-      });
-    } finally {
-      setTriggering(false);
-    }
-  };
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -476,13 +454,6 @@ export default function Events() {
             className="bg-simsy-blue text-white px-6 py-3 rounded-lg font-medium hover:bg-simsy-dark hover:text-simsy-blue transition-all duration-200 disabled:opacity-50 shadow-lg"
           >
             {refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-          <button
-            onClick={handleTriggerEvent}
-            disabled={triggering}
-            className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 shadow-lg"
-          >
-            {triggering ? 'Triggering...' : 'Trigger Event'}
           </button>
         </div>
       </div>

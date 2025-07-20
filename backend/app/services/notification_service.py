@@ -151,7 +151,7 @@ class EmailService:
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>PFCAM Event Alert</title>
+            <title>Event Cam Event Alert</title>
             <style>
                 body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
                 .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -170,7 +170,7 @@ class EmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🚨 PFCAM Event Alert</h1>
+                    <h1>🚨 Event Cam Event Alert</h1>
                 </div>
                 <div class="content">
                     <h2>New Event Captured</h2>
@@ -194,10 +194,10 @@ class EmailService:
                         <a href="{{ app_url }}/events" class="button">View Event</a>
                     </p>
                     
-                    <p><small>This is an automated notification from your PFCAM system.</small></p>
+                    <p><small>This is an automated notification from your Event Cam system.</small></p>
                 </div>
                 <div class="footer">
-                    <p>PFCAM - Industrial Event Camera Management</p>
+                    <p>Event Cam - Industrial Event Camera Management</p>
                     <p>Generated on {{ timestamp }}</p>
                 </div>
             </div>
@@ -206,7 +206,7 @@ class EmailService:
         """
         
         text_template = """
-PFCAM Event Alert
+Event Cam Event Alert
 
 New Event Captured
 
@@ -223,9 +223,9 @@ Event Details:
 
 View the event at: {{ app_url }}/events
 
-This is an automated notification from your PFCAM system.
+This is an automated notification from your Event Cam system.
 
-PFCAM - Industrial Event Camera Management
+Event Cam - Industrial Event Camera Management
 Generated on {{ timestamp }}
         """
         
@@ -283,7 +283,7 @@ class NotificationService:
                 # Email notification (if enabled)
                 if user.email_notifications:
                     html_content, text_content = self.email_service.render_event_email_template(event, camera, user)
-                    subject = f"PFCAM Alert: New Event from {camera.name}"
+                    subject = f"Event Cam Alert: New Event from {camera.name}"
                     await self.email_service.send_email(user.email, subject, html_content, text_content)
                 
             except Exception as e:
@@ -322,7 +322,7 @@ class NotificationService:
                     """
                     await self.email_service.send_email(
                         user.email,
-                        f"PFCAM Alert: Camera {camera.name} Offline",
+                        f"Event Cam Alert: Camera {camera.name} Offline",
                         html_content
                     )
             except Exception as e:

@@ -373,15 +373,16 @@ class CameraClient:
         post_event_seconds: int = 10,
         event_name: str = "string",
         overlay_text: str = "string",
-        stop_other_events: str = "none"
+        stop_other_events: str = "none",
+        post_event_unlimited: bool = True
     ) -> bool:
-        # Always send a fixed post-event duration (default 10s)
+        # Use the actual parameters passed to the function, but ensure postEventUnlimited is false
         payload = {
             "eventName": event_name,
             "overlayText": overlay_text,
             "preEventSeconds": pre_event_seconds,
             "postEventSeconds": post_event_seconds,
-            "postEventUnlimited": False,
+            "postEventUnlimited": False,  # Camera API requires this to be false
             "stopOtherEvents": stop_other_events
         }
         logger.info("Triggering camera event", payload=payload)

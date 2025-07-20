@@ -28,6 +28,9 @@ class User(Base):
     # Notification preferences
     email_notifications = Column(Boolean, default=True)
     webhook_url = Column(String)
+    event_notifications = Column(Boolean, default=True)
+    camera_status_notifications = Column(Boolean, default=True)
+    system_alerts = Column(Boolean, default=True)
     
     # Account status
     is_active = Column(Boolean, default=True)

@@ -13,6 +13,7 @@ from app.models.camera import Camera
 from app.services.camera_client import CameraClient
 from app.schemas.cameras import CameraResponse, CameraCreate, CameraUpdate, CameraStatus
 from app.services.mediamtx_config import generate_mediamtx_config, write_mediamtx_config
+from app.services.notification_service import notification_service
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -449,6 +450,7 @@ async def trigger_camera_event(
     post_event_seconds: int = Body(10),
     event_name: str = Body("string"),
     overlay_text: str = Body("string"),
+    post_event_unlimited: bool = Body(True),
     stop_other_events: str = Body("none"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("manage_cameras"))
@@ -466,12 +468,34 @@ async def trigger_camera_event(
             success = await client.trigger_event(
                 pre_event_seconds,
                 post_event_seconds,
-                event_name,
-                overlay_text,
-                stop_other_events
+                camera.name,  # Use camera name as event name
+                camera.name,  # Use camera name as overlay text
+                stop_other_events,
+                post_event_unlimited
             )
             if success:
                 logger.info("Event triggered successfully", camera_id=camera_id, user_id=current_user.id)
+                
+                # Send notification for manual trigger
+                try:
+                    logger.info("Starting notification process for manual trigger")
+                    # Get all users for notifications
+                    users_result = await db.execute(select(User).where(User.is_active == True))
+                    users = users_result.scalars().all()
+                    logger.info(f"Found {len(users)} active users for notifications")
+                    
+                    # Send system alert for manual trigger
+                    await notification_service.send_system_alert(
+                        title=f"Event Captured",
+                        message=f"Event triggered on camera {camera.name}",
+                        priority="normal",
+                        users=users
+                    )
+                    logger.info("System alert sent successfully")
+                    
+                except Exception as e:
+                    logger.error("Failed to send trigger notification", error=str(e), exc_info=True)
+                
                 return {"message": "Event triggered successfully"}
             else:
                 raise HTTPException(

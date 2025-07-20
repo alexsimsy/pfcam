@@ -7,7 +7,7 @@ import json
 import structlog
 
 from app.core.database import get_db
-from app.core.security import get_current_user_ws, require_permission
+from app.core.security import get_current_user_ws, get_current_user
 from app.models.user import User
 from app.services.notification_service import notification_service, NotificationType
 from app.schemas.notifications import NotificationPreferences, NotificationPreferencesUpdate
@@ -15,9 +15,18 @@ from app.schemas.notifications import NotificationPreferences, NotificationPrefe
 logger = structlog.get_logger()
 router = APIRouter()
 
+@router.websocket("/test")
+async def test_websocket(websocket: WebSocket):
+    """Test WebSocket endpoint"""
+    logger.info("Test WebSocket connection attempt")
+    await websocket.accept()
+    await websocket.send_text("Test WebSocket working!")
+    await websocket.close()
+
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
     """WebSocket endpoint for real-time notifications"""
+    logger.info("WebSocket connection attempt", user_id=user_id, client=websocket.client)
     await websocket.accept()
     
     # Verify user authentication
@@ -31,9 +40,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         await websocket.close(code=4001, reason="Authentication failed")
         return
     
+    # Use the authenticated user's ID for the connection
+    actual_user_id = user.id
+    logger.info("Using authenticated user ID for WebSocket", requested_user_id=user_id, actual_user_id=actual_user_id)
+    
     # Get WebSocket manager and create connection
     ws_manager = notification_service.get_websocket_manager()
-    queue = await ws_manager.connect(user_id)
+    queue = await ws_manager.connect(actual_user_id)
     
     logger.info("WebSocket connection established", user_id=user_id)
     
@@ -42,7 +55,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         await websocket.send_text(json.dumps({
             "type": "connection_established",
             "message": "WebSocket connection established",
-            "user_id": user_id,
+            "user_id": actual_user_id,
             "timestamp": "2024-01-01T00:00:00Z"  # Placeholder
         }))
         
@@ -64,27 +77,27 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         logger.error("WebSocket connection error", user_id=user_id, error=str(e))
     finally:
         # Clean up connection
-        await ws_manager.disconnect(user_id, queue)
-        logger.info("WebSocket connection cleaned up", user_id=user_id)
+        await ws_manager.disconnect(actual_user_id, queue)
+        logger.info("WebSocket connection cleaned up", user_id=actual_user_id)
 
 @router.get("/preferences", response_model=NotificationPreferences)
 async def get_notification_preferences(
-    current_user: User = Depends(require_permission("view_profile")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> NotificationPreferences:
     """Get current user's notification preferences"""
     return NotificationPreferences(
         email_notifications=current_user.email_notifications,
         webhook_url=current_user.webhook_url,
-        event_notifications=True,  # Default to True
-        camera_status_notifications=True,  # Default to True
-        system_alerts=True  # Default to True
+        event_notifications=current_user.event_notifications,
+        camera_status_notifications=current_user.camera_status_notifications,
+        system_alerts=current_user.system_alerts
     )
 
 @router.put("/preferences", response_model=NotificationPreferences)
 async def update_notification_preferences(
     preferences: NotificationPreferencesUpdate,
-    current_user: User = Depends(require_permission("view_profile")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> NotificationPreferences:
     """Update current user's notification preferences"""
@@ -95,6 +108,15 @@ async def update_notification_preferences(
         
         if preferences.webhook_url is not None:
             current_user.webhook_url = preferences.webhook_url
+            
+        if preferences.event_notifications is not None:
+            current_user.event_notifications = preferences.event_notifications
+            
+        if preferences.camera_status_notifications is not None:
+            current_user.camera_status_notifications = preferences.camera_status_notifications
+            
+        if preferences.system_alerts is not None:
+            current_user.system_alerts = preferences.system_alerts
         
         await db.commit()
         
@@ -103,9 +125,9 @@ async def update_notification_preferences(
         return NotificationPreferences(
             email_notifications=current_user.email_notifications,
             webhook_url=current_user.webhook_url,
-            event_notifications=preferences.event_notifications,
-            camera_status_notifications=preferences.camera_status_notifications,
-            system_alerts=preferences.system_alerts
+            event_notifications=current_user.event_notifications,
+            camera_status_notifications=current_user.camera_status_notifications,
+            system_alerts=current_user.system_alerts
         )
         
     except Exception as e:
@@ -117,7 +139,7 @@ async def update_notification_preferences(
 
 @router.post("/test-email")
 async def test_email_notification(
-    current_user: User = Depends(require_permission("view_profile")),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Send a test email notification to the current user"""
@@ -129,7 +151,7 @@ async def test_email_notification(
         payload = NotificationPayload(
             type=NotificationType.SYSTEM_ALERT,
             title="Test Email Notification",
-            message="This is a test email notification from PFCAM",
+            message="This is a test email notification from Event Cam",
             data={"test": True},
             timestamp=datetime.now(),
             priority="normal",
@@ -140,14 +162,14 @@ async def test_email_notification(
         email_service = notification_service.email_service
         html_content = """
         <h2>Test Email Notification</h2>
-        <p>This is a test email notification from your PFCAM system.</p>
+                        <p>This is a test email notification from your Event Cam system.</p>
         <p>If you received this email, your email notification system is working correctly.</p>
         <p>Time: {timestamp}</p>
         """.format(timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         
         success = await email_service.send_email(
             current_user.email,
-            "PFCAM Test Email Notification",
+            "Event Cam Test Email Notification",
             html_content
         )
         
@@ -168,7 +190,7 @@ async def test_email_notification(
 
 @router.get("/status")
 async def get_notification_status(
-    current_user: User = Depends(require_permission("view_profile"))
+    current_user: User = Depends(get_current_user)
 ):
     """Get notification system status for the current user"""
     ws_manager = notification_service.get_websocket_manager()
@@ -181,4 +203,34 @@ async def get_notification_status(
         "email_enabled": current_user.email_notifications,
         "webhook_configured": bool(current_user.webhook_url),
         "active_connections": len(ws_manager.active_connections.get(current_user.id, set()))
-    } 
+    }
+
+@router.post("/test")
+async def test_notification(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Send a test notification to the current user"""
+    try:
+        # Get all users for notifications
+        users_result = await db.execute(select(User).where(User.is_active == True))
+        users = users_result.scalars().all()
+        
+        # Send test notification
+        await notification_service.send_system_alert(
+                    title="Event Cam System Test",
+        message="Event Cam notification system is working correctly",
+            priority="normal",
+            users=users
+        )
+        
+        logger.info("Test notification sent", user_id=current_user.id)
+        
+        return {"message": "Test notification sent successfully"}
+        
+    except Exception as e:
+        logger.error("Failed to send test notification", user_id=current_user.id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send test notification"
+        ) 

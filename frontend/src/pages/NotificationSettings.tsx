@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppState } from '../contexts/AppStateContext';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useNotifications } from '../contexts/NotificationContext';
 import { 
   getNotificationPreferences, 
   updateNotificationPreferences, 
@@ -37,13 +37,7 @@ export default function NotificationSettings() {
   const userId = user?.sub ? parseInt(user.sub) : 0;
 
   // WebSocket connection for real-time status
-  const { isConnected, requestNotificationPermission } = useWebSocket({
-    userId,
-    onMessage: (message) => {
-      // Update status when we receive messages
-      loadNotificationStatus();
-    }
-  });
+  const { isConnected } = useNotifications();
 
   // Load notification preferences and status
   const loadData = async () => {
@@ -79,12 +73,35 @@ export default function NotificationSettings() {
     loadData();
   }, []);
 
-  // Handle form changes
-  const handleInputChange = (field: keyof NotificationPreferences, value: any) => {
-    setFormData(prev => ({
-      ...prev,
+  // Handle form changes and save immediately
+  const handleInputChange = async (field: keyof NotificationPreferences, value: any) => {
+    const updatedFormData = {
+      ...formData,
       [field]: value
-    }));
+    };
+    
+    setFormData(updatedFormData);
+    
+    // Save immediately
+    try {
+      setSaving(true);
+      const updatedPrefs = await updateNotificationPreferences(updatedFormData);
+      setPreferences(updatedPrefs);
+      setFormData(updatedPrefs);
+      dispatch({ 
+        type: 'ADD_NOTIFICATION', 
+        payload: { message: 'Setting updated', type: 'success' } 
+      });
+    } catch (error) {
+      // Revert on error
+      setFormData(preferences || {});
+      dispatch({ 
+        type: 'ADD_ERROR', 
+        payload: 'Failed to save setting' 
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Save preferences
@@ -129,64 +146,71 @@ export default function NotificationSettings() {
 
   // Request browser notification permission
   const handleRequestPermission = async () => {
-    const granted = await requestNotificationPermission();
-    if (granted) {
-      dispatch({ 
-        type: 'ADD_NOTIFICATION', 
-        payload: { message: 'Browser notifications enabled', type: 'success' } 
-      });
-    } else {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        dispatch({ 
+          type: 'ADD_NOTIFICATION', 
+          payload: { message: 'Browser notifications enabled', type: 'success' } 
+        });
+      } else {
+        dispatch({ 
+          type: 'ADD_ERROR', 
+          payload: 'Browser notifications denied' 
+        });
+      }
+    } catch (error) {
       dispatch({ 
         type: 'ADD_ERROR', 
-        payload: 'Browser notifications denied' 
+        payload: 'Failed to request notification permission' 
       });
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-simsy-bg flex items-center justify-center">
         <div className="text-center">
-          <FaSpinner className="animate-spin text-4xl text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading notification settings...</p>
+          <FaSpinner className="animate-spin text-4xl text-simsy-blue mx-auto mb-4" />
+          <p className="text-simsy-text">Loading notification settings...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="p-4 bg-simsy-bg min-h-screen">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <FaBell className="mr-3 text-blue-600" />
+          <h1 className="text-3xl font-bold text-simsy-text flex items-center">
+            <FaBell className="mr-3 text-simsy-blue" />
             Notification Settings
           </h1>
-          <p className="mt-2 text-gray-600">
-            Configure how you receive alerts and notifications from PFCAM
+          <p className="mt-2 text-simsy-text">
+            Configure how you receive alerts and notifications from Event Cam
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Settings */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Notification Preferences</h2>
+            <div className="bg-simsy-card rounded-xl shadow-lg">
+              <div className="px-6 py-4 border-b border-simsy-dark">
+                <h2 className="text-lg font-semibold text-simsy-blue">Notification Preferences</h2>
               </div>
               
               <div className="p-6 space-y-6">
                 {/* Email Notifications */}
-                <div className="flex items-start space-x-4">
+                <div className="flex items-start space-x-4 p-4 bg-simsy-dark/20 rounded-lg">
                   <div className="flex-shrink-0">
-                    <FaEnvelope className="w-6 h-6 text-gray-400" />
+                    <FaEnvelope className="w-6 h-6 text-simsy-blue" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900">Email Notifications</h3>
-                        <p className="text-sm text-gray-500">
+                        <h3 className="text-sm font-medium text-simsy-text">Email Notifications</h3>
+                        <p className="text-sm text-simsy-text">
                           Receive email alerts for events and system updates
                         </p>
                       </div>
@@ -196,8 +220,9 @@ export default function NotificationSettings() {
                           className="sr-only peer"
                           checked={formData.email_notifications || false}
                           onChange={(e) => handleInputChange('email_notifications', e.target.checked)}
+                          disabled={saving}
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="w-11 h-6 bg-simsy-dark peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-simsy-blue rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-simsy-dark after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-simsy-blue"></div>
                       </label>
                     </div>
                     
@@ -206,7 +231,7 @@ export default function NotificationSettings() {
                         <button
                           onClick={handleTestEmail}
                           disabled={testingEmail}
-                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-simsy-blue bg-simsy-blue/10 hover:bg-simsy-blue/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-simsy-blue disabled:opacity-50"
                         >
                           {testingEmail ? (
                             <>
@@ -223,15 +248,15 @@ export default function NotificationSettings() {
                 </div>
 
                 {/* Event Notifications */}
-                <div className="flex items-start space-x-4">
+                <div className="flex items-start space-x-4 p-4 bg-simsy-dark/20 rounded-lg">
                   <div className="flex-shrink-0">
-                    <FaBell className="w-6 h-6 text-gray-400" />
+                    <FaBell className="w-6 h-6 text-simsy-blue" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900">Event Notifications</h3>
-                        <p className="text-sm text-gray-500">
+                        <h3 className="text-sm font-medium text-simsy-text">Event Notifications</h3>
+                        <p className="text-sm text-simsy-text">
                           Get notified when cameras capture new events
                         </p>
                       </div>
@@ -241,23 +266,24 @@ export default function NotificationSettings() {
                           className="sr-only peer"
                           checked={formData.event_notifications || false}
                           onChange={(e) => handleInputChange('event_notifications', e.target.checked)}
+                          disabled={saving}
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="w-11 h-6 bg-simsy-dark peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-simsy-blue rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-simsy-dark after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-simsy-blue"></div>
                       </label>
                     </div>
                   </div>
                 </div>
 
                 {/* Camera Status Notifications */}
-                <div className="flex items-start space-x-4">
+                <div className="flex items-start space-x-4 p-4 bg-simsy-dark/20 rounded-lg">
                   <div className="flex-shrink-0">
-                    <FaWifi className="w-6 h-6 text-gray-400" />
+                    <FaWifi className="w-6 h-6 text-simsy-blue" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900">Camera Status</h3>
-                        <p className="text-sm text-gray-500">
+                        <h3 className="text-sm font-medium text-simsy-text">Camera Status</h3>
+                        <p className="text-sm text-simsy-text">
                           Alerts when cameras go offline or come back online
                         </p>
                       </div>
@@ -267,23 +293,24 @@ export default function NotificationSettings() {
                           className="sr-only peer"
                           checked={formData.camera_status_notifications || false}
                           onChange={(e) => handleInputChange('camera_status_notifications', e.target.checked)}
+                          disabled={saving}
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="w-11 h-6 bg-simsy-dark peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-simsy-blue rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-simsy-dark after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-simsy-blue"></div>
                       </label>
                     </div>
                   </div>
                 </div>
 
                 {/* System Alerts */}
-                <div className="flex items-start space-x-4">
+                <div className="flex items-start space-x-4 p-4 bg-simsy-dark/20 rounded-lg">
                   <div className="flex-shrink-0">
-                    <FaShieldAlt className="w-6 h-6 text-gray-400" />
+                    <FaShieldAlt className="w-6 h-6 text-simsy-blue" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900">System Alerts</h3>
-                        <p className="text-sm text-gray-500">
+                        <h3 className="text-sm font-medium text-simsy-text">System Alerts</h3>
+                        <p className="text-sm text-simsy-text">
                           Important system notifications and security alerts
                         </p>
                       </div>
@@ -293,22 +320,23 @@ export default function NotificationSettings() {
                           className="sr-only peer"
                           checked={formData.system_alerts || false}
                           onChange={(e) => handleInputChange('system_alerts', e.target.checked)}
+                          disabled={saving}
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="w-11 h-6 bg-simsy-dark peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-simsy-blue rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-simsy-dark after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-simsy-blue"></div>
                       </label>
                     </div>
                   </div>
                 </div>
 
                 {/* Webhook URL */}
-                <div className="flex items-start space-x-4">
+                <div className="flex items-start space-x-4 p-4 bg-simsy-dark/20 rounded-lg">
                   <div className="flex-shrink-0">
-                    <FaGlobe className="w-6 h-6 text-gray-400" />
+                    <FaGlobe className="w-6 h-6 text-simsy-blue" />
                   </div>
                   <div className="flex-1">
                     <div>
-                      <h3 className="text-sm font-medium text-gray-900">Webhook URL (Optional)</h3>
-                      <p className="text-sm text-gray-500 mb-2">
+                      <h3 className="text-sm font-medium text-simsy-text">Webhook URL (Optional)</h3>
+                      <p className="text-sm text-simsy-text mb-2">
                         Send notifications to external systems via webhook
                       </p>
                       <input
@@ -316,97 +344,86 @@ export default function NotificationSettings() {
                         placeholder="https://your-webhook-url.com/notifications"
                         value={formData.webhook_url || ''}
                         onChange={(e) => handleInputChange('webhook_url', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-simsy-dark rounded-md shadow-sm focus:outline-none focus:ring-simsy-blue focus:border-simsy-blue bg-simsy-dark text-simsy-text"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Save Button */}
-                <div className="pt-4">
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                  >
-                    {saving ? (
-                      <>
-                        <FaSpinner className="animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <FaCheck className="mr-2" />
-                        Save Settings
-                      </>
-                    )}
-                  </button>
-                </div>
+                {/* Auto-save indicator */}
+                {saving && (
+                  <div className="pt-4">
+                    <div className="flex items-center justify-center text-simsy-blue">
+                      <FaSpinner className="animate-spin mr-2" />
+                      <span className="text-sm">Saving...</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Status Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Connection Status</h2>
+            <div className="bg-simsy-card rounded-xl shadow-lg">
+              <div className="px-6 py-4 border-b border-simsy-dark">
+                <h2 className="text-lg font-semibold text-simsy-blue">Connection Status</h2>
               </div>
               
               <div className="p-6 space-y-4">
                 {/* WebSocket Status */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 bg-simsy-dark/20 rounded-lg">
                   <div className="flex items-center">
-                    <FaWifi className="w-5 h-5 text-gray-400 mr-2" />
-                    <span className="text-sm font-medium text-gray-900">Real-time Connection</span>
+                    <FaWifi className="w-5 h-5 text-simsy-blue mr-2" />
+                    <span className="text-sm font-medium text-simsy-text">Real-time Connection</span>
                   </div>
                   <div className="flex items-center">
                     {isConnected ? (
-                      <FaCheck className="w-4 h-4 text-green-500" />
+                      <FaCheck className="w-4 h-4 text-green-400" />
                     ) : (
-                      <FaTimes className="w-4 h-4 text-red-500" />
+                      <FaTimes className="w-4 h-4 text-red-400" />
                     )}
                   </div>
                 </div>
 
                 {/* Email Status */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 bg-simsy-dark/20 rounded-lg">
                   <div className="flex items-center">
-                    <FaEnvelope className="w-5 h-5 text-gray-400 mr-2" />
-                    <span className="text-sm font-medium text-gray-900">Email Service</span>
+                    <FaEnvelope className="w-5 h-5 text-simsy-blue mr-2" />
+                    <span className="text-sm font-medium text-simsy-text">Email Service</span>
                   </div>
                   <div className="flex items-center">
                     {status?.email_enabled ? (
-                      <FaCheck className="w-4 h-4 text-green-500" />
+                      <FaCheck className="w-4 h-4 text-green-400" />
                     ) : (
-                      <FaTimes className="w-4 h-4 text-red-500" />
+                      <FaTimes className="w-4 h-4 text-red-400" />
                     )}
                   </div>
                 </div>
 
                 {/* Browser Notifications */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 bg-simsy-dark/20 rounded-lg">
                   <div className="flex items-center">
-                    <FaBell className="w-5 h-5 text-gray-400 mr-2" />
-                    <span className="text-sm font-medium text-gray-900">Browser Notifications</span>
+                    <FaBell className="w-5 h-5 text-simsy-blue mr-2" />
+                    <span className="text-sm font-medium text-simsy-text">Browser Notifications</span>
                   </div>
                   <div className="flex items-center">
                     {Notification.permission === 'granted' ? (
-                      <FaCheck className="w-4 h-4 text-green-500" />
+                      <FaCheck className="w-4 h-4 text-green-400" />
                     ) : (
-                      <FaTimes className="w-4 h-4 text-red-500" />
+                      <FaTimes className="w-4 h-4 text-red-400" />
                     )}
                   </div>
                 </div>
 
                 {/* Mobile Optimization */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between p-3 bg-simsy-dark/20 rounded-lg">
                   <div className="flex items-center">
-                    <FaMobile className="w-5 h-5 text-gray-400 mr-2" />
-                    <span className="text-sm font-medium text-gray-900">Mobile Optimized</span>
+                    <FaMobile className="w-5 h-5 text-simsy-blue mr-2" />
+                    <span className="text-sm font-medium text-simsy-text">Mobile Optimized</span>
                   </div>
                   <div className="flex items-center">
-                    <FaCheck className="w-4 h-4 text-green-500" />
+                    <FaCheck className="w-4 h-4 text-green-400" />
                   </div>
                 </div>
 
@@ -415,7 +432,7 @@ export default function NotificationSettings() {
                   <div className="pt-4">
                     <button
                       onClick={handleRequestPermission}
-                      className="w-full inline-flex justify-center items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      className="w-full inline-flex justify-center items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-simsy-blue bg-simsy-blue/10 hover:bg-simsy-blue/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-simsy-blue"
                     >
                       <FaBell className="mr-2" />
                       Enable Browser Notifications
@@ -425,10 +442,10 @@ export default function NotificationSettings() {
 
                 {/* Active Connections */}
                 {status && (
-                  <div className="pt-4 border-t border-gray-200">
+                  <div className="pt-4 border-t border-simsy-dark">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">{status.active_connections}</div>
-                      <div className="text-sm text-gray-500">Active Connections</div>
+                      <div className="text-2xl font-bold text-simsy-blue">{status.active_connections}</div>
+                      <div className="text-sm text-simsy-text">Active Connections</div>
                     </div>
                   </div>
                 )}
