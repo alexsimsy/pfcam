@@ -35,21 +35,80 @@ if [ -f "README.md" ]; then
     echo "✅ Copied README.md"
 fi
 
+# Copy VPN setup files
+echo "📦 Copying VPN setup files..."
+mkdir -p "${PACKAGE_DIR}/vpn-setup"
+
+# Copy OpenVPN files
+if [ -f "vpn-setup/install-server.sh" ]; then
+    cp vpn-setup/install-server.sh "${PACKAGE_DIR}/vpn-setup/"
+    echo "✅ Copied OpenVPN server setup"
+fi
+
+if [ -f "vpn-setup/create-client.sh" ]; then
+    cp vpn-setup/create-client.sh "${PACKAGE_DIR}/vpn-setup/"
+    echo "✅ Copied OpenVPN client setup"
+fi
+
+if [ -f "vpn-setup/docker-compose.vpn.yml" ]; then
+    cp vpn-setup/docker-compose.vpn.yml "${PACKAGE_DIR}/vpn-setup/"
+    echo "✅ Copied OpenVPN Docker config"
+fi
+
+# Copy WireGuard files
+if [ -f "vpn-setup/wireguard-setup.sh" ]; then
+    cp vpn-setup/wireguard-setup.sh "${PACKAGE_DIR}/vpn-setup/"
+    echo "✅ Copied WireGuard server setup"
+fi
+
+if [ -f "vpn-setup/create-wireguard-client.sh" ]; then
+    cp vpn-setup/create-wireguard-client.sh "${PACKAGE_DIR}/vpn-setup/"
+    echo "✅ Copied WireGuard client setup"
+fi
+
+if [ -f "vpn-setup/docker-compose.wireguard.yml" ]; then
+    cp vpn-setup/docker-compose.wireguard.yml "${PACKAGE_DIR}/vpn-setup/"
+    echo "✅ Copied WireGuard Docker config"
+fi
+
+# Copy VPN choice script
+if [ -f "vpn-setup/choose-vpn.sh" ]; then
+    cp vpn-setup/choose-vpn.sh "${PACKAGE_DIR}/vpn-setup/"
+    echo "✅ Copied VPN choice script"
+fi
+
 # Create a simple README for the package
 cat > "${PACKAGE_DIR}/PACKAGE_README.md" << EOF
 # Event Cam Deployment Package v${VERSION}
 
-This is a simplified deployment package for testing.
+Complete deployment package with dual VPN support.
 
 ## Contents
 - hetzner-deploy.sh: Main deployment script
 - docker-compose.production.yml: Production configuration
 - README.md: Project documentation
+- vpn-setup/: VPN configuration files
+
+## VPN Options
+This package includes both VPN solutions:
+
+### OpenVPN (Enterprise)
+- Mature and battle-tested
+- Certificate-based authentication
+- Extensive configuration options
+- Wide platform compatibility
+
+### WireGuard (Modern)
+- Simple and fast
+- Modern cryptography
+- Easy client setup
+- Better performance
 
 ## Usage
 1. Extract the package
 2. Run: chmod +x hetzner-deploy.sh
 3. Run: ./hetzner-deploy.sh
+4. Choose your VPN: cd vpn-setup && ./choose-vpn.sh
 
 Created: $(date)
 EOF

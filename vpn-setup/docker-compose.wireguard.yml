@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: event-cam-wireguard
+    ports:
+      - "51820:51820/udp"
+    volumes:
+      - ./wireguard-config:/config
+      - ./wireguard-scripts:/opt/scripts
+      - /lib/modules:/lib/modules
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - SERVERURL=auto
+      - SERVERPORT=51820
+      - PEERS=1
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=10.0.0.0/24
+    restart: unless-stopped
+    networks:
+      - wireguard-network
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+
+  wireguard-monitor:
+    image: alpine:latest
+    container_name: event-cam-wireguard-monitor
+    volumes:
+      - ./wireguard-config:/config
+      - ./wireguard-logs:/var/log/wireguard
+    command: >
+      sh -c "
+        apk add --no-cache curl jq &&
+        while true; do
+          echo 'Checking WireGuard status...' &&
+          if [ -f /config/wg0.conf ]; then
+            echo 'WireGuard Configuration:' &&
+            cat /config/wg0.conf | grep -E '^\[|^Address|^PublicKey' || echo 'No configuration found'
+          fi &&
+          sleep 30
+        done
+      "
+    depends_on:
+      - wireguard
+    networks:
+      - wireguard-network
+    restart: unless-stopped
+
+networks:
+  wireguard-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/16
+
+volumes:
+  wireguard-config:
+  wireguard-logs: 
