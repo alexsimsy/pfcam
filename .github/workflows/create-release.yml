@@ -1,4 +1,4 @@
-name: Create Deployment Release
+name: Create Deployment Package
 
 on:
   push:
@@ -10,16 +10,10 @@ on:
         description: 'Release version (e.g., 1.0.0)'
         required: true
         default: '1.0.0'
-      create_tag:
-        description: 'Create a new tag for this release'
-        required: false
-        default: 'false'
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
   actions: read
-  id-token: write
 
 jobs:
   create-deployment-package:
@@ -29,10 +23,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+    - name: Get version info
+      id: version
+      run: |
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+        else
+          VERSION="${{ github.event.inputs.version }}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building deployment package for version: $VERSION"
         
     - name: Create deployment package
       run: |
@@ -48,14 +48,6 @@ jobs:
         echo "✅ Deployment package created successfully"
         ls -la build/
         
-    - name: Create tag if requested
-      if: github.event.inputs.create_tag == 'true'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git tag -a "v${{ github.event.inputs.version }}" -m "Release v${{ github.event.inputs.version }}"
-        git push origin "v${{ github.event.inputs.version }}"
-        
     - name: Upload deployment package
       uses: actions/upload-artifact@v4
       with:
@@ -66,64 +58,44 @@ jobs:
           build/RELEASE_NOTES.md
         retention-days: 30
         
-    - name: Clean up existing release
+    - name: Create GitHub Release (Simple)
       if: startsWith(github.ref, 'refs/tags/')
       run: |
         TAG_NAME=${GITHUB_REF#refs/tags/}
-        echo "Cleaning up existing release for tag: $TAG_NAME"
+        echo "Creating release for tag: $TAG_NAME"
         
-        # Delete existing release if it exists
+        # Try to create release, but don't fail if it doesn't work
+        gh release create "$TAG_NAME" \
+          --title "Event Cam $TAG_NAME" \
+          --notes-file build/RELEASE_NOTES.md \
+          --draft=false \
+          --prerelease=false || {
+          echo "⚠️  Could not create GitHub release automatically"
+          echo "📦 Deployment package is available as an artifact"
+          echo "🔗 You can manually create a release at: https://github.com/${{ github.repository }}/releases/new"
+          echo "📁 Upload the files from the artifacts section"
+        }
+        
+        # Try to upload assets if release was created
         if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-          echo "Deleting existing release"
-          gh release delete "$TAG_NAME" --yes
-        fi
-        
-        # Delete existing tag if it exists
-        if git tag -l "$TAG_NAME" | grep -q "$TAG_NAME"; then
-          echo "Deleting existing tag"
-          git tag -d "$TAG_NAME"
-          git push origin ":refs/tags/$TAG_NAME" || true
+          echo "📤 Uploading assets to release..."
+          for file in build/event-cam-deployment-*.tar.gz build/event-cam-deployment-*.zip; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file"
+              gh release upload "$TAG_NAME" "$file" --clobber || echo "Failed to upload $file"
+            fi
+          done
         fi
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Create new tag
-      if: startsWith(github.ref, 'refs/tags/')
+    - name: Success message
       run: |
-        TAG_NAME=${GITHUB_REF#refs/tags/}
-        echo "Creating new tag: $TAG_NAME"
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
-        git push origin "$TAG_NAME"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Create GitHub Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          build/event-cam-deployment-*.tar.gz
-          build/event-cam-deployment-*.zip
-        body_path: build/RELEASE_NOTES.md
-        draft: false
-        prerelease: false
-        generate_release_notes: true
-        fail_on_unmatched_files: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Create Draft Release
-      if: github.event_name == 'workflow_dispatch' && github.event.inputs.create_tag == 'false'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          build/event-cam-deployment-*.tar.gz
-          build/event-cam-deployment-*.zip
-        body_path: build/RELEASE_NOTES.md
-        draft: true
-        prerelease: false
-        tag_name: "v${{ github.event.inputs.version }}"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        echo "🎉 Deployment package created successfully!"
+        echo "📦 Package files:"
+        ls -la build/
+        echo ""
+        echo "📋 Next steps:"
+        echo "1. Download the artifacts from this workflow run"
+        echo "2. If GitHub release wasn't created automatically, create it manually"
+        echo "3. Upload the deployment package files to the release" 
