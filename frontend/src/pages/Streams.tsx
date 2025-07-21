@@ -264,7 +264,7 @@ export default function Streams() {
                 <div className="border-t border-simsy-dark p-4">
                   <h4 className="text-lg font-semibold text-simsy-blue mb-4">Streams</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {streams.get(cam.id)!.streams.map((stream) => (
+                    {streams.get(cam.id)!.streams.filter((stream) => stream.name.toLowerCase() === 'hd').map((stream) => (
                       <div key={stream.name} className="bg-simsy-dark p-4 rounded-lg">
                         <h5 className="font-semibold text-simsy-text mb-2">{stream.name.toUpperCase()}</h5>
                         <div className="text-sm text-simsy-text mb-3">

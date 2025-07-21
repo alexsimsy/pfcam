@@ -19,6 +19,7 @@ import { useAppState } from './contexts/AppStateContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import NotificationContainer from './components/NotificationContainer';
 import NotificationBell from './components/NotificationBell';
+import logo from './assets/SIMSY_OFFWHITE_NOBKGD.png';
 
 const navLinks = [
   { name: 'Dashboard', path: '/' },
@@ -55,7 +56,8 @@ export default function App() {
         {/* Top Navigation Bar */}
         <nav className="w-full bg-simsy-blue px-10 py-4 flex items-center justify-between shadow-md">
           <div className="flex items-center gap-4">
-            <span className="text-2xl font-extrabold tracking-widest text-white">S-IMSY</span>
+            <img src={logo} alt="Event Cam Logo" className="h-14 w-28 object-contain" />
+            <span className="text-2xl font-extrabold tracking-widest text-white">Event Cam</span>
           </div>
           <div className="flex gap-8 items-center">
             {navLinks.map((link) => (

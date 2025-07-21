@@ -45,8 +45,27 @@ const NotificationBell: React.FC = () => {
     }
   };
 
+  const parseLocalDate = (timestamp: string) => {
+    // Defensive: handle missing or malformed timestamps
+    if (!timestamp || typeof timestamp !== 'string') return new Date();
+    const parts = timestamp.split(' ');
+    if (parts.length !== 2) return new Date();
+    const [datePart, timePart] = parts;
+    const dateArr = datePart.split('-').map(Number);
+    const timeArr = timePart.split(':').map(Number);
+    if (dateArr.length !== 3 || timeArr.length < 2) return new Date();
+    const [year, month, day] = dateArr;
+    const [hour, minute] = timeArr;
+    if (
+      isNaN(year) || isNaN(month) || isNaN(day) ||
+      isNaN(hour) || isNaN(minute)
+    ) return new Date();
+    return new Date(year, month - 1, day, hour, minute);
+  };
+
   const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
+    if (!timestamp) return '';
+    const date = parseLocalDate(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);

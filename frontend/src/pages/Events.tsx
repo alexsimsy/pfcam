@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { fetchEvents, fetchOrphanedEvents, downloadEvent, playEvent, deleteEventLocal, deleteEventFromCamera, getEventSyncStatus, syncEvents } from '../services/events';
 import { fetchTags, assignTagsToEvent, getTagUsageStats, createTag, deleteTag } from '../services/tags';
+import { fetchCameras } from '../services/cameras';
 import { useApi } from '../hooks/useApi';
 import { useAppState } from '../contexts/AppStateContext';
 import type { Event } from '../services/events';
 import type { Tag, TagUsage } from '../services/tags';
+import type { Camera } from '../services/cameras';
 
 import { getToken } from '../services/auth';
 
@@ -100,15 +102,37 @@ export default function Events() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagUsageStats, setTagUsageStats] = useState<TagUsage[]>([]);
+  const [cameras, setCameras] = useState<Camera[]>([]);
   const [showTagManager, setShowTagManager] = useState(false);
   const [editingEventTags, setEditingEventTags] = useState<number | null>(null);
   const [showCreateTag, setShowCreateTag] = useState(false);
 
+  // Filter state
+  const [filters, setFilters] = useState({
+    cameraId: undefined as number | undefined,
+    tagIds: [] as number[],
+    isPlayed: undefined as boolean | undefined,
+    showFilters: false
+  });
+
   const [refreshKey, setRefreshKey] = useState(0);
   
+  // Create a wrapper function that includes filters
+  const fetchEventsWithFilters = async () => {
+    if (showOrphaned) {
+      return fetchOrphanedEvents();
+    } else {
+      return fetchEvents({
+        cameraId: filters.cameraId,
+        tagIds: filters.tagIds.length > 0 ? filters.tagIds : undefined,
+        isPlayed: filters.isPlayed
+      });
+    }
+  };
+
   const { data: events, loading, error } = useApi(
-    showOrphaned ? fetchOrphanedEvents : fetchEvents,
-    [showOrphaned, refreshKey], // Re-fetch when showOrphaned or refreshKey changes
+    fetchEventsWithFilters,
+    [showOrphaned, refreshKey, filters], // Re-fetch when showOrphaned, refreshKey, or filters change
     {
       onError: (err) => {
         console.error('Events fetch error:', err);
@@ -121,21 +145,23 @@ export default function Events() {
     setRefreshKey(prev => prev + 1);
   };
 
-  // Load tags and usage stats
+  // Load tags, usage stats, and cameras
   useEffect(() => {
-    const loadTags = async () => {
+    const loadData = async () => {
       try {
-        const [tagsData, usageData] = await Promise.all([
+        const [tagsData, usageData, camerasData] = await Promise.all([
           fetchTags(),
-          getTagUsageStats()
+          getTagUsageStats(),
+          fetchCameras()
         ]);
         setTags(tagsData.tags);
         setTagUsageStats(usageData);
+        setCameras(camerasData);
       } catch (error) {
-        console.error('Failed to load tags:', error);
+        console.error('Failed to load data:', error);
       }
     };
-    loadTags();
+    loadData();
   }, []);
 
   // Load sync status for all events
@@ -408,6 +434,23 @@ export default function Events() {
     }
   };
 
+  // Filter handlers
+  const handleFilterChange = (filterType: string, value: any) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      cameraId: undefined,
+      tagIds: [],
+      isPlayed: undefined,
+      showFilters: false
+    });
+  };
+
   // Helper function to get event display name
   const getEventDisplayName = (event: Event) => {
     if (event.display_name) return event.display_name;
@@ -456,6 +499,105 @@ export default function Events() {
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-6 p-4 bg-simsy-card rounded-lg shadow-lg">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-simsy-text">Filters</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleFilterChange('showFilters', !filters.showFilters)}
+              className="text-simsy-blue hover:text-simsy-dark transition-colors duration-200"
+            >
+              {filters.showFilters ? 'Hide Filters' : 'Show Filters'}
+            </button>
+            <button
+              onClick={handleClearFilters}
+              className="text-gray-500 hover:text-gray-700 transition-colors duration-200"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+        
+        {filters.showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Camera Filter */}
+            <div>
+              <label className="block text-sm font-medium text-simsy-text mb-2">
+                Camera
+              </label>
+              <select
+                value={filters.cameraId || ''}
+                onChange={(e) => handleFilterChange('cameraId', e.target.value ? parseInt(e.target.value) : undefined)}
+                className="w-full px-3 py-2 border border-simsy-dark rounded-md shadow-sm focus:outline-none focus:ring-simsy-blue focus:border-simsy-blue bg-simsy-dark text-simsy-text"
+              >
+                <option value="">All Cameras</option>
+                {cameras.map((camera) => (
+                  <option key={camera.id} value={camera.id}>
+                    {camera.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tags Filter */}
+            <div>
+              <label className="block text-sm font-medium text-simsy-text mb-2">
+                Tags
+              </label>
+              <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border border-simsy-dark rounded-md bg-simsy-dark">
+                {tags.map((tag) => (
+                  <TagBadge
+                    key={tag.id}
+                    tag={tag}
+                    selected={filters.tagIds.includes(tag.id)}
+                    onClick={() => {
+                      const newTagIds = filters.tagIds.includes(tag.id)
+                        ? filters.tagIds.filter(id => id !== tag.id)
+                        : [...filters.tagIds, tag.id];
+                      handleFilterChange('tagIds', newTagIds);
+                    }}
+                  />
+                ))}
+                {tags.length === 0 && (
+                  <span className="text-gray-500 text-sm">No tags available</span>
+                )}
+              </div>
+            </div>
+
+            {/* Played Status Filter */}
+            <div>
+              <label className="block text-sm font-medium text-simsy-text mb-2">
+                Played Status
+              </label>
+              <select
+                value={filters.isPlayed === undefined ? '' : filters.isPlayed.toString()}
+                onChange={(e) => handleFilterChange('isPlayed', e.target.value === '' ? undefined : e.target.value === 'true')}
+                className="w-full px-3 py-2 border border-simsy-dark rounded-md shadow-sm focus:outline-none focus:ring-simsy-blue focus:border-simsy-blue bg-simsy-dark text-simsy-text"
+              >
+                <option value="">All Events</option>
+                <option value="true">Played</option>
+                <option value="false">Not Played</option>
+              </select>
+            </div>
+
+            {/* Active Filters Summary */}
+            <div>
+              <label className="block text-sm font-medium text-simsy-text mb-2">
+                Active Filters
+              </label>
+              <div className="text-sm text-simsy-text">
+                {[
+                  filters.cameraId && `Camera: ${cameras.find(c => c.id === filters.cameraId)?.name}`,
+                  filters.tagIds.length > 0 && `Tags: ${filters.tagIds.length} selected`,
+                  filters.isPlayed !== undefined && `Status: ${filters.isPlayed ? 'Played' : 'Not Played'}`
+                ].filter(Boolean).join(', ') || 'No filters applied'}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tag Manager */}
@@ -598,7 +740,7 @@ export default function Events() {
                         {event.camera_name || 'Unknown Camera'}
                       </td>
                       <td className="px-4 py-3 text-simsy-text">
-                        {new Date(event.triggered_at).toLocaleString()}
+                        {event.triggered_at ? event.triggered_at.slice(0, 16).replace('T', ' ') : ''}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-center gap-2">

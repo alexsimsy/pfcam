@@ -144,6 +144,33 @@ export default function NotificationSettings() {
     }
   };
 
+  // Test WebSocket notification
+  const handleTestWebSocket = async () => {
+    try {
+      const response = await fetch('/api/v1/notifications/test-websocket', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        dispatch({ 
+          type: 'ADD_NOTIFICATION', 
+          payload: { message: 'Test WebSocket notification sent! Check for the notification.', type: 'success' } 
+        });
+      } else {
+        throw new Error('Failed to send test notification');
+      }
+    } catch (error) {
+      dispatch({ 
+        type: 'ADD_ERROR', 
+        payload: 'Failed to send test WebSocket notification' 
+      });
+    }
+  };
+
   // Request browser notification permission
   const handleRequestPermission = async () => {
     try {
@@ -439,6 +466,17 @@ export default function NotificationSettings() {
                     </button>
                   </div>
                 )}
+
+                {/* Test WebSocket Button */}
+                <div className="pt-4">
+                  <button
+                    onClick={handleTestWebSocket}
+                    className="w-full inline-flex justify-center items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-simsy-blue bg-simsy-blue/10 hover:bg-simsy-blue/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-simsy-blue"
+                  >
+                    <FaWifi className="mr-2" />
+                    Test WebSocket Connection
+                  </button>
+                </div>
 
                 {/* Active Connections */}
                 {status && (

@@ -41,6 +41,8 @@ export interface EventFilters {
   cameraId?: number;
   startDate?: string;
   endDate?: string;
+  tagIds?: number[];
+  isPlayed?: boolean;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -53,8 +55,48 @@ function getAuthHeaders() {
   };
 }
 
-export async function fetchEvents(params: any = {}) {
-  const query = new URLSearchParams(params).toString();
+export async function fetchEvents(params: EventFilters & { limit?: number; offset?: number; sortBy?: string; sortOrder?: string } = {}) {
+  const queryParams: any = { ...params };
+  
+  // Convert tagIds array to comma-separated string
+  if (params.tagIds && params.tagIds.length > 0) {
+    queryParams.tag_ids = params.tagIds.join(',');
+    delete queryParams.tagIds;
+  }
+  
+  // Convert isPlayed to is_played for backend
+  if (params.isPlayed !== undefined) {
+    queryParams.is_played = params.isPlayed;
+    delete queryParams.isPlayed;
+  }
+  
+  // Convert camelCase to snake_case for backend
+  if (params.startDate) {
+    queryParams.start_date = params.startDate;
+    delete queryParams.startDate;
+  }
+  
+  if (params.endDate) {
+    queryParams.end_date = params.endDate;
+    delete queryParams.endDate;
+  }
+  
+  if (params.cameraId) {
+    queryParams.camera_id = params.cameraId;
+    delete queryParams.cameraId;
+  }
+  
+  if (params.sortBy) {
+    queryParams.sort_by = params.sortBy;
+    delete queryParams.sortBy;
+  }
+  
+  if (params.sortOrder) {
+    queryParams.sort_order = params.sortOrder;
+    delete queryParams.sortOrder;
+  }
+  
+  const query = new URLSearchParams(queryParams).toString();
   const response = await fetch(`${API_BASE_URL}/api/v1/events/${query ? `?${query}` : ''}`, {
     headers: getAuthHeaders(),
   });

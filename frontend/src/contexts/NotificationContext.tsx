@@ -42,25 +42,38 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     if (!user) return;
 
     // Extract user ID from JWT payload
-    // The JWT payload might have 'id' field or we need to get it from the database
-    // For now, let's use a default user ID of 1 for admin user
-    const userId = user.id || (user.sub === 'admin@s-imsy.com' ? 1 : null);
+    // Since the JWT only contains email (sub), we need to determine the user ID
+    // For now, we'll use user ID 1 for admin@s-imsy.com
+    let userId: number | null = null;
+    
+    if (user.sub === 'admin@s-imsy.com') {
+      userId = 1;
+    } else {
+      // For other users, we could make an API call to get the user ID
+      // For now, we'll use a fallback
+      console.warn('Unknown user email, using default user ID 1');
+      userId = 1;
+    }
     
     if (!userId) {
       console.warn('No user ID available for WebSocket connection');
       return;
     }
 
+    console.log('Connecting to WebSocket with user ID:', userId, 'for user:', user.sub);
+
     // Connect to WebSocket
     websocketService.connect(userId);
 
     // Listen for connection status
     const handleConnectionChange = (connected: boolean) => {
+      console.log('WebSocket connection status changed:', connected);
       setIsConnected(connected);
     };
 
     // Listen for notifications
     const handleNotification = (notification: NotificationPayload) => {
+      console.log('Received notification:', notification);
       addNotification(notification);
     };
 

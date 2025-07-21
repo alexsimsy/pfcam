@@ -52,7 +52,7 @@ class WebSocketService {
       }, 5000); // 5 second timeout
       
       this.ws.onopen = () => {
-        console.log('WebSocket connected successfully');
+        console.log('WebSocket connected successfully for user:', userId);
         clearTimeout(connectionTimeout);
         this.isConnected = true;
         this.reconnectAttempts = 0;
@@ -88,14 +88,14 @@ class WebSocketService {
       };
 
       this.ws.onclose = (event) => {
-        console.log('WebSocket disconnected:', event.code, event.reason);
+        console.log('WebSocket disconnected for user:', userId, 'code:', event.code, 'reason:', event.reason);
         this.isConnected = false;
         this.notifyConnectionListeners(false);
         
         // Attempt to reconnect if not a normal closure
         if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+          console.log(`Attempting to reconnect for user ${userId} (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
           
           setTimeout(() => {
             this.connect(userId);

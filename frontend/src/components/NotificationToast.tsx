@@ -43,8 +43,9 @@ const NotificationToast: React.FC<NotificationToastProps> = ({ notification, onR
   };
 
   const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!timestamp) return '';
+    // Support both '2025-07-21T07:21:53+00:00' and '2025-07-21 07:21:53+00:00'
+    return timestamp.slice(0, 16).replace('T', ' ');
   };
 
   const handleRemove = () => {
