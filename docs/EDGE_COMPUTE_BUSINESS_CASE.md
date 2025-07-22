@@ -246,3 +246,15 @@ The edge compute deployment strategy positions PFCAM as the leading solution for
 ---
 
 *This business case demonstrates that edge compute deployment is not just a technical optimization, but a strategic business decision that creates significant competitive advantages and market opportunities.* 
+
+## Cloudflare HTTPS Integration
+
+For production edge deployments, we recommend using Cloudflare for DNS and HTTPS termination:
+
+- **Free Universal SSL:** Cloudflare provides free SSL/TLS certificates for all proxied domains.
+- **End-to-End Encryption:** Use 'Full (Strict)' SSL mode with Cloudflare Origin Certificates for secure traffic from browser to Cloudflare and Cloudflare to your server.
+- **No Certificate Renewal Hassle:** Cloudflare Origin Certificates do not expire for 15 years and do not require Let's Encrypt or manual renewal.
+- **Simple Setup:** Generate and install an Origin Certificate from the Cloudflare dashboard, update your Nginx config, and you're done.
+- **Automatic HTTPS Redirects:** Cloudflare can force all traffic to HTTPS and rewrite insecure links.
+
+This approach is highly recommended for scalable, secure, and low-maintenance edge deployments. 

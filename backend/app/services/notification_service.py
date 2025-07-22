@@ -10,6 +10,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from jinja2 import Template
 import structlog
+import httpx
+import ipaddress
+import re
 
 from app.core.config import settings
 from app.models.user import User
@@ -250,11 +253,72 @@ class NotificationService:
     def __init__(self):
         self.websocket_manager = WebSocketManager()
         self.email_service = EmailService()
-    
+
+    async def send_webhook_notification(self, user: User, payload: NotificationPayload):
+        webhook_url = getattr(user, 'webhook_url', None)
+        if not webhook_url:
+            return
+        logger.debug("Webhook notification attempt", user_id=user.id, webhook_url=webhook_url)
+        # Only allow HTTPS URLs
+        if not webhook_url.startswith('https://'):
+            logger.warning("Webhook URL must be HTTPS", webhook_url=webhook_url, user_id=user.id)
+            return
+        # Block internal/private IPs (basic check)
+        try:
+            # Extract hostname
+            match = re.match(r'https://([^/]+)', webhook_url)
+            if not match:
+                logger.warning("Invalid webhook URL format", webhook_url=webhook_url, user_id=user.id)
+                return
+            host = match.group(1)
+            # Resolve to IP
+            import socket
+            ip = socket.gethostbyname(host)
+            ip_obj = ipaddress.ip_address(ip)
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+                logger.warning("Blocked private/internal IP for webhook", webhook_url=webhook_url, ip=ip, user_id=user.id)
+                return
+        except Exception as e:
+            logger.warning("Failed to resolve webhook host", webhook_url=webhook_url, error=str(e), user_id=user.id)
+            return
+        # Sanitize payload (only send non-sensitive fields)
+        safe_payload = {
+            "type": payload.type.value,
+            "title": payload.title,
+            "message": payload.message,
+            "data": payload.data,
+            "timestamp": str(payload.timestamp),
+            "priority": payload.priority,
+            "category": payload.category
+        }
+        # Send POST request with timeout
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(webhook_url, json=safe_payload)
+                if resp.status_code >= 400:
+                    logger.warning("Webhook POST failed", webhook_url=webhook_url, status=resp.status_code, user_id=user.id)
+        except Exception as e:
+            logger.warning("Webhook POST error", webhook_url=webhook_url, error=str(e), user_id=user.id)
+
     async def send_event_notification(self, event: Event, camera: Camera, users: List[User]):
         """Send notifications for new events"""
         logger.info("Sending event notifications", event_id=event.id, camera_id=camera.id, users_count=len(users))
+        for user in users:
+            logger.debug("Notification user info", user_id=user.id, email=user.email, webhook_url=getattr(user, 'webhook_url', None), is_active=getattr(user, 'is_active', None))
         
+        # Format event triggered_at as local time string (YYYY-MM-DD HH:MM), strip any timezone offset for display
+        ts = str(event.triggered_at) if event.triggered_at else ''
+        # Remove timezone info if present (e.g., +00:00 or Z)
+        if ts.endswith('Z'):
+            ts = ts[:-1]
+        if '+' in ts:
+            ts = ts.split('+')[0]
+        if '-' in ts[10:]:  # Handles e.g. 2025-07-21T07:21:53-01:00
+            ts = ts[:19]
+        # Format to 'YYYY-MM-DD HH:MM' for display
+        display_time = ts.replace('T', ' ').strip()[:16]
+        # Use a real datetime for the payload timestamp
+        payload_timestamp = event.triggered_at if isinstance(event.triggered_at, datetime) else datetime.utcnow()
         # Create notification payload
         payload = NotificationPayload(
             type=NotificationType.EVENT_CAPTURED,
@@ -266,10 +330,10 @@ class NotificationService:
                 "camera_name": camera.name,
                 "event_name": event.event_name,
                 "filename": event.filename,
-                "triggered_at": event.triggered_at.isoformat(),
+                "triggered_at": str(event.triggered_at),
                 "playback_time": event.playback_time
             },
-            timestamp=datetime.now(),
+            timestamp=payload_timestamp,
             priority="high",
             category="events"
         )
@@ -286,6 +350,8 @@ class NotificationService:
                     subject = f"Event Cam Alert: New Event from {camera.name}"
                     await self.email_service.send_email(user.email, subject, html_content, text_content)
                 
+                # Webhook notification (if configured)
+                await self.send_webhook_notification(user, payload)
             except Exception as e:
                 logger.error("Failed to send notification to user", user_id=user.id, error=str(e))
     
@@ -359,3 +425,7 @@ class NotificationService:
 
 # Global notification service instance
 notification_service = NotificationService() 
+
+# Custom exception for camera offline
+class CameraOfflineException(Exception):
+    pass 

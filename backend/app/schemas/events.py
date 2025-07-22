@@ -8,7 +8,7 @@ class EventResponse(BaseModel):
     camera_id: int
     filename: str  # Keep for internal use but won't display
     event_name: Optional[str]
-    triggered_at: datetime
+    triggered_at: str
     file_size: Optional[int]
     file_path: Optional[str]
     thumbnail_path: Optional[str]

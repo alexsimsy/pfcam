@@ -482,16 +482,20 @@ async def trigger_camera_event(
                     # Get all users for notifications
                     users_result = await db.execute(select(User).where(User.is_active == True))
                     users = users_result.scalars().all()
-                    logger.info(f"Found {len(users)} active users for notifications")
+                    logger.debug(f"Found {len(users)} active users for notifications")
                     
-                    # Send system alert for manual trigger
-                    await notification_service.send_system_alert(
-                        title=f"Event Captured",
-                        message=f"Event triggered on camera {camera.name}",
-                        priority="normal",
-                        users=users
+                    # Send full event notification (webhook, email, websocket, etc.)
+                    # Create a dummy Event object for notification payload
+                    from app.models.event import Event
+                    event = Event(
+                        camera_id=camera.id,
+                        filename=f"manual_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
+                        event_name="Manual Trigger",
+                        triggered_at=datetime.utcnow()
                     )
-                    logger.info("System alert sent successfully")
+                    logger.debug("About to send event notification", event_data=event.__dict__, users=[u.email for u in users])
+                    await notification_service.send_event_notification(event, camera, users)
+                    logger.debug("Event notification sent", event_data=event.__dict__)
                     
                 except Exception as e:
                     logger.error("Failed to send trigger notification", error=str(e), exc_info=True)
@@ -732,3 +736,31 @@ async def configure_all_cameras_ftp(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to configure FTP on all cameras"
         ) 
+
+@router.post("/{camera_id}/reconnect")
+async def reconnect_camera(
+    camera_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("view_cameras"))
+) -> Any:
+    """Manually trigger a health check for a camera and update its status."""
+    result = await db.execute(select(Camera).where(Camera.id == camera_id))
+    camera = result.scalar_one_or_none()
+    if not camera:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera not found")
+    users_result = await db.execute(select(User).where(User.is_active == True))
+    users = users_result.scalars().all()
+    prev_status = camera.is_online
+    try:
+        async with CameraClient(base_url=camera.base_url) as client:
+            is_connected = await client.test_connection()
+        camera.is_online = is_connected
+        if is_connected:
+            camera.last_seen = datetime.utcnow()
+    except Exception:
+        camera.is_online = False
+    await db.commit()
+    # Notify on status change
+    if prev_status != camera.is_online:
+        await notification_service.send_camera_status_notification(camera, camera.is_online, users)
+    return {"camera_id": camera.id, "is_online": camera.is_online, "last_seen": camera.last_seen} 

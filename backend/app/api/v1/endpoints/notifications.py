@@ -23,6 +23,41 @@ async def test_websocket(websocket: WebSocket):
     await websocket.send_text("Test WebSocket working!")
     await websocket.close()
 
+@router.post("/test-websocket")
+async def test_websocket_notification(
+    current_user: User = Depends(get_current_user)
+):
+    """Send a test WebSocket notification to the current user"""
+    try:
+        # Create a test notification payload
+        from app.services.notification_service import NotificationPayload
+        from datetime import datetime
+        
+        payload = NotificationPayload(
+            type=NotificationType.SYSTEM_ALERT,
+            title="WebSocket Test",
+            message="This is a test WebSocket notification",
+            data={"test": True, "timestamp": datetime.now().isoformat()},
+            timestamp=datetime.now(),
+            priority="normal",
+            category="test"
+        )
+        
+        # Send directly to the current user via WebSocket
+        ws_manager = notification_service.get_websocket_manager()
+        await ws_manager.send_to_user(current_user.id, payload)
+        
+        logger.info("Test WebSocket notification sent", user_id=current_user.id)
+        
+        return {"message": "Test WebSocket notification sent successfully"}
+        
+    except Exception as e:
+        logger.error("Failed to send test WebSocket notification", user_id=current_user.id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send test WebSocket notification"
+        )
+
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
     """WebSocket endpoint for real-time notifications"""
@@ -212,19 +247,15 @@ async def test_notification(
 ):
     """Send a test notification to the current user"""
     try:
-        # Get all users for notifications
-        users_result = await db.execute(select(User).where(User.is_active == True))
-        users = users_result.scalars().all()
-        
-        # Send test notification
+        # Send test notification specifically to the current user
         await notification_service.send_system_alert(
-                    title="Event Cam System Test",
-        message="Event Cam notification system is working correctly",
+            title="Event Cam System Test",
+            message="Event Cam notification system is working correctly",
             priority="normal",
-            users=users
+            users=[current_user]  # Send only to current user
         )
         
-        logger.info("Test notification sent", user_id=current_user.id)
+        logger.info("Test notification sent to current user", user_id=current_user.id)
         
         return {"message": "Test notification sent successfully"}
         

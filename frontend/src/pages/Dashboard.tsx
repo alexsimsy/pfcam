@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { fetchCameras, createCamera, triggerEvent } from '../services/cameras';
+import { fetchCameras, createCamera, triggerEvent, reconnectCamera } from '../services/cameras';
 import { fetchCameraStreams, getStreamSnapshot } from '../services/streams';
 import { fetchDashboardStats } from '../services/dashboard';
 import type { Camera } from '../services/cameras';
@@ -25,6 +25,7 @@ export default function Dashboard() {
   const [snapshotLoading, setSnapshotLoading] = useState<number | null>(null);
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const [triggerLoading, setTriggerLoading] = useState<number | null>(null);
+  const [reconnectLoading, setReconnectLoading] = useState<number | null>(null);
 
   const { data: cameras, loading, error } = useApi(
     fetchCameras,
@@ -128,6 +129,29 @@ export default function Dashboard() {
       });
     } finally {
       setTriggerLoading(null);
+    }
+  };
+
+  const handleReconnect = async (cameraId: number) => {
+    setReconnectLoading(cameraId);
+    try {
+      const result = await reconnectCamera(cameraId);
+      dispatch({
+        type: 'ADD_NOTIFICATION',
+        payload: {
+          message: result.is_online ? 'Camera reconnected successfully' : 'Camera is still offline',
+          type: result.is_online ? 'success' : 'error',
+        },
+      });
+      // Refetch cameras by reloading the page for now
+      window.location.reload();
+    } catch (err: any) {
+      dispatch({
+        type: 'ADD_NOTIFICATION',
+        payload: { message: err.message || 'Failed to reconnect camera', type: 'error' },
+      });
+    } finally {
+      setReconnectLoading(null);
     }
   };
 
@@ -278,7 +302,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                    <div className={`w-3 h-3 rounded-full ${cam.is_online ? 'bg-green-400' : 'bg-red-500'}`}></div>
                     <div>
                       <h3 className="text-xl font-bold text-simsy-blue">{cam.name}</h3>
                       <p className="text-simsy-text">{cam.ip_address}:{cam.port}</p>
@@ -286,15 +310,11 @@ export default function Dashboard() {
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-2">
-                      <span className={`font-bold ${cam.is_online ? 'text-green-400' : 'text-red-400'}`}>
-                        {cam.is_online ? 'Online' : 'Offline'}
-                      </span>
+                      <span className={`font-bold ${cam.is_online ? 'text-green-400' : 'text-red-400'}`}>{cam.is_online ? 'Online' : 'Offline'}</span>
                       <span className="text-simsy-text">{cam.model || '-'}</span>
                     </div>
-                    <p className="text-sm text-simsy-text">
-                      {cam.last_seen ? new Date(cam.last_seen).toLocaleString() : '-'}
-                    </p>
-                    <div className="mt-2">
+                    <p className="text-sm text-simsy-text">{cam.last_seen ? new Date(cam.last_seen).toLocaleString() : '-'}</p>
+                    <div className="mt-2 flex gap-2">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -305,6 +325,18 @@ export default function Dashboard() {
                       >
                         {triggerLoading === cam.id ? 'Triggering...' : 'Trigger Event'}
                       </button>
+                      {!cam.is_online && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReconnect(cam.id);
+                          }}
+                          disabled={reconnectLoading === cam.id}
+                          className="bg-simsy-blue text-white font-bold py-1 px-3 rounded text-sm hover:bg-simsy-dark hover:text-simsy-blue transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {reconnectLoading === cam.id ? 'Reconnecting...' : 'Reconnect'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

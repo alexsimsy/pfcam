@@ -53,6 +53,8 @@ async def list_events(
     event_name: Optional[str] = Query(None, description="Filter by event name"),
     start_date: Optional[datetime] = Query(None, description="Start date filter"),
     end_date: Optional[datetime] = Query(None, description="End date filter"),
+    tag_ids: Optional[str] = Query(None, description="Comma-separated list of tag IDs to filter by"),
+    is_played: Optional[bool] = Query(None, description="Filter by played status"),
     limit: int = Query(50, le=100, description="Number of events to return"),
     offset: int = Query(0, ge=0, description="Number of events to skip"),
     sort_by: str = Query("triggered_at", description="Sort field"),
@@ -79,6 +81,18 @@ async def list_events(
     
     if end_date:
         query = query.where(Event.triggered_at <= end_date)
+    
+    # Filter by played status
+    if is_played is not None:
+        query = query.where(Event.is_played == is_played)
+    
+    # Filter by tags
+    if tag_ids:
+        tag_id_list = [int(tid.strip()) for tid in tag_ids.split(',') if tid.strip().isdigit()]
+        if tag_id_list:
+            # Filter events that have any of the specified tags
+            from app.models.tag import event_tags
+            query = query.join(event_tags).where(event_tags.c.tag_id.in_(tag_id_list))
     
     # Filter out orphaned events (not on camera and not downloaded locally) unless explicitly requested
     if not show_orphaned:
@@ -122,6 +136,16 @@ async def list_events(
     if end_date:
         count_query = count_query.where(Event.triggered_at <= end_date)
     
+    # Apply same filters to count query
+    if is_played is not None:
+        count_query = count_query.where(Event.is_played == is_played)
+    
+    if tag_ids:
+        tag_id_list = [int(tid.strip()) for tid in tag_ids.split(',') if tid.strip().isdigit()]
+        if tag_id_list:
+            from app.models.tag import event_tags
+            count_query = count_query.join(event_tags).where(event_tags.c.tag_id.in_(tag_id_list))
+    
     # Apply same orphaned filter to count query
     if not show_orphaned:
         count_query = count_query.where(Event.is_orphaned == False)
@@ -130,7 +154,9 @@ async def list_events(
     total_count = len(count_result.scalars().all())
     
     return EventList(
-        events=[EventResponse.from_orm(event) for event in events],
+        events=[EventResponse(
+            **{**event.__dict__, "triggered_at": str(event.triggered_at) if event.triggered_at is not None else None}
+        ) for event in events],
         total=total_count,
         limit=limit,
         offset=offset
@@ -207,7 +233,9 @@ async def get_event(
             detail="Event not found"
         )
     
-    return EventResponse.from_orm(event)
+    return EventResponse(
+        **{**event.__dict__, "triggered_at": str(event.triggered_at) if event.triggered_at is not None else None}
+    )
 
 @router.get("/{event_id}/download")
 async def download_event(

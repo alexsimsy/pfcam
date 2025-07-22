@@ -97,4 +97,13 @@ export async function configureAllCamerasFtp(): Promise<any> {
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+export async function reconnectCamera(cameraId: number): Promise<{ camera_id: number; is_online: boolean; last_seen?: string }> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/${cameraId}/reconnect`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 } 

@@ -135,11 +135,12 @@ class SystemInfo(BaseModel):
 
 class CameraClient:
     """Client for interacting with the industrial event camera API"""
-    
-    def __init__(self, base_url: str = None, timeout: int = None):
+    DEFAULT_TIMEOUT = 2  # seconds
+    DEFAULT_RETRIES = 30
+    def __init__(self, base_url: str = None, timeout: int = None, retry_attempts: int = None):
         self.base_url = base_url or settings.CAMERA_BASE_URL
-        self.timeout = timeout or settings.CAMERA_TIMEOUT
-        self.retry_attempts = settings.CAMERA_RETRY_ATTEMPTS
+        self.timeout = timeout or getattr(settings, 'CAMERA_TIMEOUT', self.DEFAULT_TIMEOUT)
+        self.retry_attempts = retry_attempts or getattr(settings, 'CAMERA_RETRY_ATTEMPTS', self.DEFAULT_RETRIES)
         self.client: Optional[httpx.AsyncClient] = None
         
     async def __aenter__(self):
@@ -167,12 +168,10 @@ class CameraClient:
             try:
                 response = await self.client.request(method, url, **kwargs)
                 response.raise_for_status()
-                
                 if response.headers.get("content-type", "").startswith("application/json"):
                     return response.json()
                 else:
                     return response.content
-                        
             except httpx.HTTPError as e:
                 logger.warning(
                     "Camera API request failed",
@@ -180,11 +179,11 @@ class CameraClient:
                     endpoint=endpoint,
                     error=str(e)
                 )
-                
                 if attempt == self.retry_attempts - 1:
-                    raise
-                
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    # Raise a custom exception to indicate camera is offline
+                    from app.services.notification_service import CameraOfflineException
+                    raise CameraOfflineException(f"Camera at {self.base_url} is offline after {self.retry_attempts} attempts.")
+                await asyncio.sleep(2)  # Fixed short backoff for fast detection
     
     async def get_events(self, filters: Dict[str, Any] = None) -> List[CameraEvent]:
         """Get list of events from camera"""

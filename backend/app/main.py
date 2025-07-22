@@ -12,6 +12,7 @@ from app.core.database import init_db
 from app.api.v1.api import api_router
 from app.core.logging import setup_logging
 from app.services.time_sync_service import start_time_sync_service, stop_time_sync_service
+from app.services.camera_health_service import start_camera_health_service, stop_camera_health_service
 
 # Setup logging
 setup_logging()
@@ -28,6 +29,8 @@ async def lifespan(app: FastAPI):
     logger.info("Starting background services")
     await start_time_sync_service()
     logger.info("Time sync service started")
+    await start_camera_health_service()
+    logger.info("Camera health service started")
     
     yield
     
@@ -38,6 +41,8 @@ async def lifespan(app: FastAPI):
     logger.info("Stopping background services")
     await stop_time_sync_service()
     logger.info("Time sync service stopped")
+    await stop_camera_health_service()
+    logger.info("Camera health service stopped")
 
 # Determine if we should enable OpenAPI docs
 enable_docs = os.getenv("ENVIRONMENT") != "production"

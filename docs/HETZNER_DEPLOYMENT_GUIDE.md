@@ -232,6 +232,45 @@ The deployment script automatically configures UFW with:
 - **Perfect forward secrecy**: Session keys
 - **No metadata leakage**: Minimal logging
 
+## Cloudflare HTTPS Setup (Recommended for Production)
+
+If you use Cloudflare for DNS and domain hosting, you can enable HTTPS for your deployment easily and securely:
+
+### 1. Set SSL/TLS Mode in Cloudflare
+- Go to your domain in the Cloudflare dashboard.
+- Navigate to SSL/TLS settings.
+- Set SSL/TLS mode to **Full (Strict)** for end-to-end encryption.
+
+### 2. Generate a Cloudflare Origin Certificate
+- In the Cloudflare dashboard, go to SSL/TLS > Origin Server.
+- Click 'Create Certificate'.
+- Choose 'Let Cloudflare generate a private key and CSR'.
+- Add your domain(s) (e.g., `yourdomain.com`, `*.yourdomain.com`).
+- Download the certificate and private key files.
+
+### 3. Install the Origin Certificate on Your Server
+- Copy the certificate and private key to your server (e.g., `/etc/ssl/certs/` and `/etc/ssl/private/`).
+- Update your Nginx config (e.g., `nginx/nginx.conf`) to use these files:
+
+```
+ssl_certificate /etc/ssl/certs/cloudflare-origin.pem;
+ssl_certificate_key /etc/ssl/private/cloudflare-origin-key.pem;
+```
+
+### 4. Reload Nginx
+- Run `sudo systemctl reload nginx` or restart your Nginx container.
+
+### 5. Enable HTTPS Redirects in Cloudflare
+- In the Cloudflare dashboard, enable 'Always Use HTTPS' and 'Automatic HTTPS Rewrites'.
+
+### 6. (Optional) Restrict Nginx to Cloudflare IPs Only
+- For extra security, only allow traffic from Cloudflare IPs to your server.
+
+**Result:**
+- All browser traffic is encrypted from end-to-end.
+- No need to manage Let's Encrypt renewals.
+- Simple, secure, and free with Cloudflare.
+
 ## Monitoring and Maintenance
 
 ### Automated Monitoring
