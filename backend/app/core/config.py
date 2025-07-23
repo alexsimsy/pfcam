@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     # Monitoring
     SENTRY_DSN: Optional[str] = None
     
-    FTP_PUBLIC_HOST: Optional[str] = os.getenv("FTP_PUBLIC_HOST", "10.147.19.111")
+    FTP_PUBLIC_HOST: Optional[str] = os.getenv("FTP_PUBLIC_HOST", "10.147.19.157")
     
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
