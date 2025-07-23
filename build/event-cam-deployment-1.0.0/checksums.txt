@@ -1,6 +1,6 @@
 4b477abd9cc3f60c20a7d956ad2d5036023e4c2a0575f6aefe12e28d4e7ee5d6  ./DEPLOYMENT_GUIDE.md
 bbeae46a83741cdd4ae24951b262a748e04273007cd416a056a3d5cf0dd22f46  ./INSTALLATION_GUIDE.md
-0b147c65daba72184a7fcc71a7f7139b27a64769ebf30822d3dc9ed83da7340f  ./QUICKSTART.md
+cd2faca38e1d89ec88bb415b484813b7929b0c76a0cfe807bd2f5f8a59143a8d  ./QUICKSTART.md
 25573ed77ea875f62a243bafd67a842041e7ff09b63c4f2fdb0231ef404c9e87  ./README.md
 93fd8bc2fd3b318af22e3f9bc48d23c4b8983774a0f5b0d8bc46ac7f7b2b5e19  ./client-setup.sh
 09b0249bfa1554ed1c9585f924a11a328dbf5585fcfd674a1ca30ca42bae2c07  ./docker-compose.4gb-ram.yml
@@ -17,10 +17,14 @@ f8ebd8734b3090e56ce833dcb061c5509341b8c086bcbcc37aabbd1cd37e067c  ./update-ports
 fc0048c631da33df7b0af99c27182c3598da44d0821210518de35e105d4d6bb4  ./vpn-setup/QUICK_REFERENCE.md
 98c4cd20ba4baef400a9b3899f2d1a4099117441e65ea74706ff657ad3f85f88  ./vpn-setup/README.md
 7fb72eac0cb728f51943536b31ee20a9ddd78a749d3c0525c2f49b5cd5f45a13  ./vpn-setup/SIMSY_NETWORK_CONFIG.md
+d8b120ba79c1f14d3b45e4387cf9f4180b9adc931d17e84d6ac2fa08511cf7c0  ./vpn-setup/choose-vpn.sh
 24ba19a956bde5afd7c54d655092bed38a3d987e8465437a7bd4d7893dbc87ec  ./vpn-setup/create-client.sh
+85bb86bb73f75c1872ca4d0ef0f1e04a400b56ee7304eb348a020f67b6da36bc  ./vpn-setup/create-wireguard-client.sh
 5e308d56296817caf812c90b0f384f6c3bacd96183cdf84cb05ee2964ce40f8b  ./vpn-setup/docker-compose.vpn.yml
+cb3dc1dcfbf59edbba87ae4acb62c5048dd95a6a907b5bec865d003881bcf519  ./vpn-setup/docker-compose.wireguard.yml
 43874fa870e48ca57b248798ad830573912c98e3f3591084da8512fd950dc559  ./vpn-setup/init-vpn.sh
 4ed1749e20291eff02654e6b65b5af834b1c686b5e9c4b33ba615d4b51405571  ./vpn-setup/install-server.sh
 95ce222d9747a6172533a426b6b5d0a27736d59ac1be51bfc86b61115dd2e5af  ./vpn-setup/monitor-4gb-ram.sh
 2b5a53e5f4249eb8b16435987d07f73fadcaf2522247e868bde345659646c8a8  ./vpn-setup/quick-start.sh
 f998f2a566de66cd22566fdb7e81ddb8254df7b1a4f1a3870cbbd5c323f94e6c  ./vpn-setup/test-vpn.sh
+9b583bd3ad40a245450db09de55423bba57875cffda536f8aaea8f496427da47  ./vpn-setup/wireguard-setup.sh

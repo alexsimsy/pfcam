@@ -257,3 +257,10 @@ For issues and questions:
 - Check the API documentation at http://localhost:8000/docs
 - Review the logs for error messages
 - Consult the development plan in `docs/DEVELOPMENT_PLAN.md` 
+
+## Camera Health Monitoring & Reconnect
+
+- The system automatically checks all cameras every 30 minutes.
+- Offline cameras are shown with a red indicator on the dashboard.
+- You can manually attempt to reconnect an offline camera using the "Reconnect" button next to it.
+- Notifications are sent when a camera goes offline or comes back online. 

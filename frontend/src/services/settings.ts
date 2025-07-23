@@ -15,10 +15,8 @@ export interface ApplicationSettings {
   updated_at?: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-
 export async function fetchApplicationSettings(): Promise<ApplicationSettings> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/settings/application/settings`, {
+  const response = await fetch(`/api/v1/settings/application/settings`, {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`,
       'Content-Type': 'application/json',
@@ -33,7 +31,7 @@ export async function fetchApplicationSettings(): Promise<ApplicationSettings> {
 }
 
 export async function updateApplicationSettings(updates: Partial<ApplicationSettings>): Promise<ApplicationSettings> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/settings/application/settings`, {
+  const response = await fetch(`/api/v1/settings/application/settings`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -50,7 +48,7 @@ export async function updateApplicationSettings(updates: Partial<ApplicationSett
 }
 
 export async function resetApplicationSettings(): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/settings/application/settings/reset`, {
+  const response = await fetch(`/api/v1/settings/application/settings/reset`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`,

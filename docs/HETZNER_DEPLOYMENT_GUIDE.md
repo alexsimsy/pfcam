@@ -474,3 +474,10 @@ This automated deployment process significantly reduces the time and complexity 
 ---
 
 *This deployment guide provides a complete solution for automated PFCAM deployment on Hetzner servers, enabling rapid scaling and consistent deployments across multiple customer sites.* 
+
+## 🚦 Camera Health Monitoring & Reconnect
+
+- The backend now includes a background service that polls all cameras every 30 minutes.
+- Offline cameras are detected quickly and shown with a red indicator in the dashboard UI.
+- Users can manually attempt to reconnect an offline camera using the "Reconnect" button.
+- Notifications are sent when a camera goes offline or comes back online. 

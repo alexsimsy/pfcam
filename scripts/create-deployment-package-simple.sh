@@ -83,11 +83,21 @@ if [ -f "scripts/setup-admin.sh" ]; then
     echo "✅ Copied admin setup script"
 fi
 
+# Ensure new camera health service is included
+if [ -f "backend/app/services/camera_health_service.py" ]; then
+    cp backend/app/services/camera_health_service.py "${PACKAGE_DIR}/backend/app/services/"
+    echo "✅ Copied camera_health_service.py"
+fi
+
 # Create a simple README for the package
 cat > "${PACKAGE_DIR}/PACKAGE_README.md" << EOF
 # Event Cam Deployment Package v${VERSION}
 
 Complete deployment package with dual VPN support.
+
+## New Features
+- Camera health polling background service
+- Dashboard reconnect button for offline cameras
 
 ## Contents
 - hetzner-deploy.sh: Main deployment script
@@ -133,6 +143,7 @@ cat > "RELEASE_NOTES.md" << EOF
 - Simplified deployment package for testing
 - Essential deployment scripts
 - Production Docker configuration
+- Camera health polling background service and dashboard reconnect button
 
 ## Quick Start
 1. Extract the package

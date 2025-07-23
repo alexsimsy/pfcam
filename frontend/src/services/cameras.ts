@@ -28,8 +28,6 @@ export interface CameraCreate {
   use_ssl: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
 function getAuthHeaders() {
   const token = getToken();
   return {
@@ -39,7 +37,7 @@ function getAuthHeaders() {
 }
 
 export async function fetchCameras(): Promise<Camera[]> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/`, {
+  const res = await fetch(`/api/v1/cameras/`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error('Failed to fetch cameras');
@@ -47,7 +45,7 @@ export async function fetchCameras(): Promise<Camera[]> {
 }
 
 export async function createCamera(data: CameraCreate): Promise<Camera> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/`, {
+  const res = await fetch(`/api/v1/cameras/`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -57,7 +55,7 @@ export async function createCamera(data: CameraCreate): Promise<Camera> {
 }
 
 export async function updateCameraSystemSettings(cameraId: number, settings: any): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/settings/${cameraId}`, {
+  const res = await fetch(`/api/v1/settings/${cameraId}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(settings),
@@ -74,7 +72,7 @@ export async function triggerEvent(
   postEventUnlimited: boolean = true,
   stopOtherEvents: string = "none"
 ): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/${cameraId}/trigger-event`, {
+  const res = await fetch(`/api/v1/cameras/${cameraId}/trigger-event`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
@@ -91,7 +89,7 @@ export async function triggerEvent(
 }
 
 export async function configureAllCamerasFtp(): Promise<any> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/configure-ftp-all`, {
+  const res = await fetch(`/api/v1/cameras/configure-ftp-all`, {
     method: 'POST',
     headers: getAuthHeaders(),
   });
@@ -100,7 +98,7 @@ export async function configureAllCamerasFtp(): Promise<any> {
 }
 
 export async function reconnectCamera(cameraId: number): Promise<{ camera_id: number; is_online: boolean; last_seen?: string }> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/cameras/${cameraId}/reconnect`, {
+  const res = await fetch(`/api/v1/cameras/${cameraId}/reconnect`, {
     method: 'POST',
     headers: getAuthHeaders(),
   });

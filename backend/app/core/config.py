@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     # Monitoring
     SENTRY_DSN: Optional[str] = None
     
+    FTP_PUBLIC_HOST: Optional[str] = os.getenv("FTP_PUBLIC_HOST", "10.147.19.111")
+    
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def validate_database_url(cls, v):

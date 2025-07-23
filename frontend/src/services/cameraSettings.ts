@@ -1,7 +1,5 @@
 import { getToken } from './auth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
 function getAuthHeaders() {
   const token = getToken();
   return {
@@ -27,7 +25,7 @@ export interface SettingsResponse {
 }
 
 export async function fetchCameraSettings(cameraId: number): Promise<SettingsResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/settings/${cameraId}`, {
+  const res = await fetch(`/api/v1/settings/${cameraId}`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error('Failed to fetch camera settings');
@@ -35,7 +33,7 @@ export async function fetchCameraSettings(cameraId: number): Promise<SettingsRes
 }
 
 export async function updateCameraSettings(cameraId: number, settings: Partial<CameraSettings>): Promise<SettingsResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/settings/${cameraId}`, {
+  const res = await fetch(`/api/v1/settings/${cameraId}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(settings),
@@ -45,7 +43,7 @@ export async function updateCameraSettings(cameraId: number, settings: Partial<C
 }
 
 export async function fetchAllCamerasSettings(): Promise<Record<string, CameraSettings>> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/settings/cameras/all`, {
+  const res = await fetch(`/api/v1/settings/cameras/all`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error('Failed to fetch all cameras settings');
@@ -53,7 +51,7 @@ export async function fetchAllCamerasSettings(): Promise<Record<string, CameraSe
 }
 
 export async function resetCameraSettings(cameraId: number): Promise<SettingsResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/settings/${cameraId}/reset`, {
+  const res = await fetch(`/api/v1/settings/${cameraId}/reset`, {
     method: 'DELETE',
     headers: getAuthHeaders(),
   });

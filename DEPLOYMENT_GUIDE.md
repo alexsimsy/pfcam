@@ -196,6 +196,13 @@ docker compose logs -f frontend
 - Use dedicated database server
 - Implement caching strategies
 
+## 🚦 Camera Health Monitoring & Reconnect
+
+- The backend now includes a background service that polls all cameras every 30 minutes.
+- Offline cameras are detected quickly and shown with a red indicator in the dashboard UI.
+- Users can manually attempt to reconnect an offline camera using the "Reconnect" button.
+- Notifications are sent when a camera goes offline or comes back online.
+
 ---
 
 **Version**: 1.0.0  

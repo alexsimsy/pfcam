@@ -45,8 +45,6 @@ export interface EventFilters {
   isPlayed?: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
 function getAuthHeaders() {
   const token = getToken();
   return {
@@ -97,7 +95,7 @@ export async function fetchEvents(params: EventFilters & { limit?: number; offse
   }
   
   const query = new URLSearchParams(queryParams).toString();
-  const response = await fetch(`${API_BASE_URL}/api/v1/events/${query ? `?${query}` : ''}`, {
+  const response = await fetch(`/api/v1/events/${query ? `?${query}` : ''}`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
@@ -108,7 +106,7 @@ export async function fetchEvents(params: EventFilters & { limit?: number; offse
 
 export async function fetchOrphanedEvents(params: any = {}) {
   const query = new URLSearchParams(params).toString();
-  const response = await fetch(`${API_BASE_URL}/api/v1/events/orphaned${query ? `?${query}` : ''}`, {
+  const response = await fetch(`/api/v1/events/orphaned${query ? `?${query}` : ''}`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
@@ -119,7 +117,7 @@ export async function fetchOrphanedEvents(params: any = {}) {
 
 export async function syncEvents(cameraId?: number): Promise<any> {
   const params = cameraId ? `?camera_id=${cameraId}` : '';
-  const res = await fetch(`${API_BASE_URL}/api/v1/events/sync${params}`, {
+  const res = await fetch(`/api/v1/events/sync${params}`, {
     method: 'POST',
     headers: getAuthHeaders(),
   });
@@ -129,7 +127,7 @@ export async function syncEvents(cameraId?: number): Promise<any> {
 
 export async function downloadEvent(eventId: number): Promise<void> {
   const token = getToken();
-  const url = `${API_BASE_URL}/api/v1/events/${eventId}/download`;
+  const url = `/api/v1/events/${eventId}/download`;
   
   console.log('Downloading event:', { eventId, url });
   
@@ -175,12 +173,12 @@ export async function downloadEvent(eventId: number): Promise<void> {
 
 export async function playEvent(eventId: number): Promise<string> {
   // Returns the URL to stream the video for playback
-  return `${API_BASE_URL}/api/v1/events/${eventId}/play`;
+  return `/api/v1/events/${eventId}/play`;
 }
 
 export async function deleteEventLocal(eventId: number): Promise<void> {
   const token = getToken();
-  const res = await fetch(`${API_BASE_URL}/api/v1/events/${eventId}/local`, {
+  const res = await fetch(`/api/v1/events/${eventId}/local`, {
     method: 'DELETE',
     headers: {
       ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -191,7 +189,7 @@ export async function deleteEventLocal(eventId: number): Promise<void> {
 
 export async function deleteEventFromCamera(eventId: number): Promise<void> {
   const token = getToken();
-  const res = await fetch(`${API_BASE_URL}/api/v1/events/${eventId}`, {
+  const res = await fetch(`/api/v1/events/${eventId}`, {
     method: 'DELETE',
     headers: {
       ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -202,7 +200,7 @@ export async function deleteEventFromCamera(eventId: number): Promise<void> {
 
 export async function getEventSyncStatus(eventId: number): Promise<{on_server: boolean, on_camera: boolean}> {
   const token = getToken();
-  const res = await fetch(`${API_BASE_URL}/api/v1/events/${eventId}/sync-status`, {
+  const res = await fetch(`/api/v1/events/${eventId}/sync-status`, {
     headers: {
       ...(token && { 'Authorization': `Bearer ${token}` }),
     },
@@ -213,7 +211,7 @@ export async function getEventSyncStatus(eventId: number): Promise<{on_server: b
 
 export async function refreshEventSyncStatus(eventId: number): Promise<{on_server: boolean}> {
   const token = getToken();
-  const res = await fetch(`${API_BASE_URL}/api/v1/events/${eventId}/refresh`, {
+  const res = await fetch(`/api/v1/events/${eventId}/refresh`, {
     headers: {
       ...(token && { 'Authorization': `Bearer ${token}` }),
     },

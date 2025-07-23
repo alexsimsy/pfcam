@@ -63,6 +63,9 @@ cp fix-secret-key.sh "${PACKAGE_DIR}/" || echo "Warning: fix-secret-key.sh not f
 cp update-ports.sh "${PACKAGE_DIR}/" || echo "Warning: update-ports.sh not found"
 cp setup-remote-access.sh "${PACKAGE_DIR}/" || echo "Warning: setup-remote-access.sh not found"
 
+# Ensure new camera health service is included
+cp backend/app/services/camera_health_service.py "${PACKAGE_DIR}/backend/app/services/" || echo "Warning: camera_health_service.py not found"
+
 # Make scripts executable
 echo -e "${YELLOW}🔐 Making scripts executable...${NC}"
 chmod +x "${PACKAGE_DIR}"/*.sh 2>/dev/null || echo "Warning: No .sh files in package root"
@@ -94,6 +97,7 @@ cat > "${BUILD_DIR}/RELEASE_NOTES.md" << EOF
 - Production-ready Docker configurations
 - Comprehensive documentation
 - Security hardening scripts
+- Camera health polling background service and dashboard reconnect button
 
 ## 📦 Package Contents
 

@@ -141,7 +141,14 @@ The camera provides a comprehensive REST API with the following key endpoints:
    - Video playback with authentication
    - Blob-based video streaming
 
-3. **Tag Management System**
+3. **Camera Health Monitoring**
+   - Background polling of all cameras every 30 minutes
+   - Offline cameras are detected quickly and marked in the UI
+   - Red status indicator for offline cameras, green for online
+   - Manual "Reconnect" button for offline cameras on the dashboard
+   - Notifications sent when cameras go offline or come back online
+
+4. **Tag Management System**
    - Create, edit, and delete custom tags
    - Color-coded tag organization
    - Tag assignment to events
@@ -149,25 +156,25 @@ The camera provides a comprehensive REST API with the following key endpoints:
    - Tag usage statistics
    - Tag-based event filtering
 
-4. **System Configuration**
+5. **System Configuration**
    - Camera settings management
    - Network configuration
    - Recording parameters
    - Exposure and focus controls
 
-5. **User Management**
+6. **User Management**
    - Multi-factor authentication
    - Role-based access control (Admin, Manager, Viewer)
    - User permissions management
    - Session management
 
-6. **Notifications**
+7. **Notifications**
    - Real-time event alerts
    - Email notifications
    - SMS alerts (optional)
    - Webhook integration
 
-7. **Data Management**
+8. **Data Management**
    - Secure file storage
    - Backup and retention policies
    - Data export capabilities

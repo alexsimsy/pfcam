@@ -24,8 +24,6 @@ export interface EventTagAssignment {
   tag_ids: number[];
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
 function getAuthHeaders() {
   const token = getToken();
   return {
@@ -36,7 +34,7 @@ function getAuthHeaders() {
 
 export async function fetchTags(params: any = {}) {
   const query = new URLSearchParams(params).toString();
-  const url = API_BASE_URL ? `${API_BASE_URL}/api/v1/tags/${query ? `?${query}` : ''}` : `/api/v1/tags/${query ? `?${query}` : ''}`;
+  const url = `/api/v1/tags/${query ? `?${query}` : ''}`;
   const response = await fetch(url, {
     headers: getAuthHeaders(),
   });
@@ -47,7 +45,7 @@ export async function fetchTags(params: any = {}) {
 }
 
 export async function createTag(tagData: { name: string; color?: string; description?: string }) {
-  const url = API_BASE_URL ? `${API_BASE_URL}/api/v1/tags/` : '/api/v1/tags/';
+  const url = `/api/v1/tags/`;
   const response = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -60,7 +58,7 @@ export async function createTag(tagData: { name: string; color?: string; descrip
 }
 
 export async function updateTag(tagId: number, tagData: { name?: string; color?: string; description?: string }) {
-  const url = API_BASE_URL ? `${API_BASE_URL}/api/v1/tags/${tagId}` : `/api/v1/tags/${tagId}`;
+  const url = `/api/v1/tags/${tagId}`;
   const response = await fetch(url, {
     method: 'PUT',
     headers: getAuthHeaders(),
@@ -73,7 +71,7 @@ export async function updateTag(tagId: number, tagData: { name?: string; color?:
 }
 
 export async function deleteTag(tagId: number) {
-  const url = API_BASE_URL ? `${API_BASE_URL}/api/v1/tags/${tagId}` : `/api/v1/tags/${tagId}`;
+  const url = `/api/v1/tags/${tagId}`;
   const response = await fetch(url, {
     method: 'DELETE',
     headers: getAuthHeaders(),
@@ -85,7 +83,7 @@ export async function deleteTag(tagId: number) {
 }
 
 export async function assignTagsToEvent(eventId: number, tagIds: number[]) {
-  const url = API_BASE_URL ? `${API_BASE_URL}/api/v1/tags/assign` : '/api/v1/tags/assign';
+  const url = `/api/v1/tags/assign`;
   console.log('assignTagsToEvent called with:', { eventId, tagIds, url });
   
   try {
@@ -114,7 +112,7 @@ export async function assignTagsToEvent(eventId: number, tagIds: number[]) {
 }
 
 export async function getTagUsageStats(): Promise<TagUsage[]> {
-  const url = API_BASE_URL ? `${API_BASE_URL}/api/v1/tags/usage/stats` : '/api/v1/tags/usage/stats';
+  const url = `/api/v1/tags/usage/stats`;
   const response = await fetch(url, {
     headers: getAuthHeaders(),
   });

@@ -352,3 +352,49 @@ Configure cameras to use SIMSY network:
 
 ## Contact Information
 For SIMSY network support and VPN configuration assistance, contact your SIMSY network administrator. 
+
+---
+
+## ZeroTier Integration (Experimental)
+
+ZeroTier provides a simple, flexible, and cross-platform virtual network for secure connectivity. This setup allows the PFCAM server to join a ZeroTier network using Docker.
+
+### Prerequisites
+- A ZeroTier account (https://my.zerotier.com/)
+- A ZeroTier network created in your account
+- The network ID (find this in the ZeroTier web UI)
+
+### Running ZeroTier in Docker
+
+1. Edit `docker-compose.zerotier.yml` and set your network ID:
+   ```yaml
+   environment:
+     - ZEROTIER_NETWORK_ID=your_network_id_here
+   ```
+
+2. Start the ZeroTier container:
+   ```bash
+   docker compose -f docker-compose.zerotier.yml up -d
+   ```
+
+3. Authorize the server in the ZeroTier web UI (if your network is private).
+
+4. (Optional) Check the container logs for status:
+   ```bash
+   docker logs zerotier
+   ```
+
+5. To join additional networks, use the ZeroTier CLI inside the container:
+   ```bash
+   docker exec -it zerotier zerotier-cli join <network_id>
+   ```
+
+### Notes
+- The container uses `network_mode: host` and requires `NET_ADMIN` and `SYS_ADMIN` capabilities, as well as access to `/dev/net/tun`.
+- Data is persisted in the `zerotier-one-data` Docker volume.
+- You can manage network membership and see connected devices in the ZeroTier web UI.
+
+### Troubleshooting
+- If the container does not join the network, check the logs and ensure the network ID is correct.
+- Make sure the server is authorized in the ZeroTier web UI.
+- For more details, see the [ZeroTier Docker documentation](https://docs.zerotier.com/docker/). 

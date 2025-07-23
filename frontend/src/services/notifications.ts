@@ -1,7 +1,5 @@
 import { getToken } from './auth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
 function getAuthHeaders() {
   const token = getToken();
   return {
@@ -39,7 +37,7 @@ export interface TestEmailResponse {
 
 // Get notification preferences
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/preferences`, {
+  const response = await fetch(`/api/v1/notifications/preferences`, {
     headers: getAuthHeaders(),
   });
   
@@ -54,7 +52,7 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
 export async function updateNotificationPreferences(
   preferences: NotificationPreferencesUpdate
 ): Promise<NotificationPreferences> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/preferences`, {
+  const response = await fetch(`/api/v1/notifications/preferences`, {
     method: 'PUT',
     headers: {
       ...getAuthHeaders(),
@@ -72,7 +70,7 @@ export async function updateNotificationPreferences(
 
 // Get notification status
 export async function getNotificationStatus(): Promise<NotificationStatus> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/status`, {
+  const response = await fetch(`/api/v1/notifications/status`, {
     headers: getAuthHeaders(),
   });
   
@@ -85,7 +83,7 @@ export async function getNotificationStatus(): Promise<NotificationStatus> {
 
 // Send test email
 export async function sendTestEmail(): Promise<TestEmailResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/notifications/test-email`, {
+  const response = await fetch(`/api/v1/notifications/test-email`, {
     method: 'POST',
     headers: getAuthHeaders(),
   });

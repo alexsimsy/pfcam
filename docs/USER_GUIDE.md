@@ -120,6 +120,13 @@ The Dashboard provides a comprehensive overview of your PFCAM system with real-t
 - **Events in Last 24 Hours** - Recent activity count
 - **Unviewed Events** - Events that haven't been marked as viewed
 - **Events by Tag** - Distribution of events by category
+- **Camera Status** - Green indicator for online cameras, red for offline. Offline cameras can be manually reconnected using the "Reconnect" button.
+
+### Camera Health Monitoring
+- The system automatically checks all cameras every 30 minutes in the background.
+- If a camera goes offline, it is marked with a red indicator and a notification is sent to all users.
+- When a camera comes back online, the indicator turns green and a notification is sent.
+- You can manually attempt to reconnect an offline camera from the dashboard.
 
 ### Auto-Refresh
 - The dashboard automatically refreshes every 30 seconds

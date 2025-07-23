@@ -7,6 +7,7 @@
 - Production-ready Docker configurations
 - Comprehensive documentation
 - Security hardening scripts
+- Camera health polling background service and dashboard reconnect button
 
 ## 📦 Package Contents
 
@@ -75,6 +76,6 @@ For issues or questions:
 
 ---
 
-**Release Date**: 2025-07-20  
+**Release Date**: 2025-07-22  
 **Compatible with**: Event Cam v1.0.0+  
-**Package Size**: 228K
+**Package Size**: 244K

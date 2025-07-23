@@ -18,8 +18,6 @@ export interface DashboardStats {
   }>;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
 function getAuthHeaders() {
   const token = getToken();
   return {
@@ -29,7 +27,7 @@ function getAuthHeaders() {
 }
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/stats`, {
+  const response = await fetch(`/api/v1/dashboard/stats`, {
     headers: getAuthHeaders(),
   });
   if (!response.ok) {
